@@ -1,24 +1,33 @@
 # ESP32-S3 Internet Monitor
 
-A visual internet connectivity monitor using the Waveshare ESP32-S3-Matrix. Displays real-time connection status through an 8x8 RGB LED matrix with animated effects, controllable via web interface.
+A visual internet connectivity monitor using the Waveshare ESP32-S3-Matrix. Know your internet status at a glance — green means online, red means down.
 
-![Web Interface](images/webgui.jpg)
+![Hardware](images/hardware.jpg)
+
+## LED Status Colors
+
+| Color | Meaning |
+|-------|---------|
+| 🟢 Green | Internet OK |
+| 🟡 Yellow | Degraded (1 check failed) |
+| 🟠 Orange | Internet down (2+ consecutive failures) |
+| 🔴 Red | WiFi disconnected |
+| 🔵 Blue | Booting / Connecting to WiFi |
+| 🟣 Purple | OTA update in progress |
 
 ## Features
 
+- **At-a-glance status** — color-coded LED matrix shows connection state instantly
 - **Real-time monitoring** — checks connectivity every 10 seconds
-- **Visual status** — color-coded LED matrix shows connection state at a glance
+- **False alarm prevention** — requires 2 consecutive failures before showing "down"
+- **Watchdog timer** — auto-reboots if device hangs (60 second timeout)
 - **6 LED effects** — Off, Solid, Ripple, Rainbow, Pulse, Rain
 - **Web dashboard** — control effects, brightness, speed, and rotation
 - **OTA updates** — update firmware over WiFi without USB
-- **Watchdog timer** — auto-reboots if device hangs (60 second timeout)
-- **False alarm prevention** — requires 2 consecutive failures before showing "down"
 
 ## Hardware
 
 [Waveshare ESP32-S3-Matrix](https://www.waveshare.com/esp32-s3-matrix.htm)
-
-![Hardware](images/hardware.jpg)
 
 - ESP32-S3 dual-core @ 240MHz
 - 8x8 WS2812B RGB LED matrix (64 LEDs)
@@ -59,17 +68,6 @@ A visual internet connectivity monitor using the Waveshare ESP32-S3-Matrix. Disp
 3. Check Serial Monitor (115200 baud) for IP address
 4. Open IP in browser to access web interface
 
-## LED Status Colors
-
-| Color | Meaning |
-|-------|---------|
-| Blue | Booting / Connecting to WiFi |
-| Green | Internet OK |
-| Yellow | Degraded (1 check failed) |
-| Orange | Internet down (2+ consecutive failures) |
-| Red | WiFi disconnected |
-| Purple | OTA update in progress |
-
 ## LED Effects
 
 | Effect | Description |
@@ -82,6 +80,8 @@ A visual internet connectivity monitor using the Waveshare ESP32-S3-Matrix. Disp
 | Rain | Falling droplets |
 
 ## Web Interface
+
+![Web Interface](images/webgui.jpg)
 
 Access via device IP address. Controls:
 
