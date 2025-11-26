@@ -63,9 +63,17 @@ A visual internet connectivity monitor using the Waveshare ESP32-S3-Matrix. Know
 
 ## Web Interface
 
-![Web Interface](images/webgui-2.jpg)
+Access via device IP address. Password-protected with configurable password.
 
-Access via device IP address. Controls:
+**Login**
+
+![Login](images/webgui-1.jpg)
+
+**Dashboard**
+
+![Dashboard](images/webgui-2.jpg)
+
+Controls:
 
 - **Effect buttons** — select animation
 - **Brightness slider** — 5 to 50
