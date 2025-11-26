@@ -36,37 +36,18 @@ A visual internet connectivity monitor using the Waveshare ESP32-S3-Matrix. Know
 
 > ⚠️ **Warning:** Keep brightness ≤50 to prevent overheating.
 
-## Installation
+## Quick Start
 
-### Prerequisites
-
-1. [Arduino IDE 2.x](https://www.arduino.cc/en/software)
-2. ESP32 board support — add this URL in File → Preferences → Additional Board URLs:
-   ```
-   https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
-   ```
-   Then: Tools → Board → Boards Manager → search "esp32" → Install
-3. **Adafruit NeoPixel** library — Tools → Manage Libraries → search "Adafruit NeoPixel" → Install
-
-### Upload
-
-1. Edit `InternetMonitor.ino` — set your WiFi credentials:
+1. Set up Arduino IDE for ESP32-S3-Matrix: [Waveshare Wiki Guide](https://www.waveshare.com/wiki/ESP32-S3-Matrix#Working_with_Arduino)
+2. Install **Adafruit NeoPixel** library (Tools → Manage Libraries)
+3. Edit `InternetMonitor.ino` — set your WiFi credentials:
    ```cpp
    const char* WIFI_SSID     = "YourWiFiName";
    const char* WIFI_PASSWORD = "YourPassword";
    ```
-2. Board settings in Tools menu:
-   - Board: `ESP32S3 Dev Module`
-   - USB CDC On Boot: `Enabled`
-   - Port: Select your COM port
-3. Click Upload
-
-### First Boot
-
-1. Blue LEDs while connecting to WiFi
-2. Green when connected and internet OK
-3. Check Serial Monitor (115200 baud) for IP address
-4. Open IP in browser to access web interface
+4. Upload to board
+5. Check Serial Monitor (115200 baud) for IP address
+6. Open IP in browser to access web interface
 
 ## LED Effects
 
