@@ -2,7 +2,7 @@
 
 A visual internet connectivity monitor using the Waveshare ESP32-S3-Matrix. Displays real-time connection status through an 8x8 RGB LED matrix with animated effects, controllable via web interface.
 
-![Web Interface](images/webui.png)
+![Web Interface](images/webgui.jpg)
 
 ## Features
 
