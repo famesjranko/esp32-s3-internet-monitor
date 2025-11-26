@@ -63,7 +63,7 @@ A visual internet connectivity monitor using the Waveshare ESP32-S3-Matrix. Know
 
 ## Web Interface
 
-![Web Interface](images/webgui.jpg)
+![Web Interface](images/webgui-2.jpg)
 
 Access via device IP address. Controls:
 
