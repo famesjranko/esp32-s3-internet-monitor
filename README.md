@@ -22,7 +22,7 @@ A visual internet connectivity monitor using the Waveshare ESP32-S3-Matrix. Know
 - **False alarm prevention** — requires 2 consecutive failures before showing "down"
 - **Watchdog timer** — auto-reboots if device hangs (60 second timeout)
 - **6 LED effects** — Off, Solid, Ripple, Rainbow, Pulse, Rain
-- **Web dashboard** — control effects, brightness, speed, and rotation
+- **Password-protected web dashboard** — control effects, brightness, speed, and rotation
 - **OTA updates** — update firmware over WiFi without USB
 
 ## Hardware
@@ -39,15 +39,16 @@ A visual internet connectivity monitor using the Waveshare ESP32-S3-Matrix. Know
 ## Quick Start
 
 1. Set up Arduino IDE for ESP32-S3-Matrix: [Waveshare Wiki Guide](https://www.waveshare.com/wiki/ESP32-S3-Matrix#Working_with_Arduino)
-2. Install **Adafruit NeoPixel** library (Tools → Manage Libraries)
-3. Edit `InternetMonitor.ino` — set your WiFi credentials:
+2. Install **Adafruit NeoPixel** library via Library Manager
+3. Edit `config.h` — set your WiFi credentials and web password:
    ```cpp
    const char* WIFI_SSID     = "YourWiFiName";
    const char* WIFI_PASSWORD = "YourPassword";
+   const char* WEB_PASSWORD  = "admin";  // Change this!
    ```
 4. Upload to board
 5. Check Serial Monitor (115200 baud) for IP address
-6. Open IP in browser to access web interface
+6. Open IP in browser and login with your password
 
 ## LED Effects
 
@@ -94,18 +95,36 @@ After initial USB upload, future updates can be done over WiFi:
 1. In Arduino IDE: Tools → Port → Select `internet-monitor` (network)
 2. Upload as normal
 
-## Configuration
+## Project Structure
 
-Edit these values in `InternetMonitor.ino`:
-
-```cpp
-#define CHECK_INTERVAL    10000  // Check every 10 seconds
-#define WIFI_TIMEOUT      20000  // 20 seconds to connect
-#define WDT_TIMEOUT       60     // Watchdog timeout (seconds)
-#define FAILURES_BEFORE_RED  2   // Consecutive failures before "down"
+```
+InternetMonitor/
+├── InternetMonitor.ino   # Main logic, setup, loop
+├── config.h              # WiFi, password, timing settings
+├── effects.h             # LED effect functions
+├── ui_login.h            # Login page HTML
+└── ui_dashboard.h        # Dashboard HTML/CSS/JS
 ```
 
-Default settings: Rain effect, brightness 21, speed 80%, rotation 180°
+## Configuration
+
+Edit `config.h` to customize:
+
+```cpp
+// WiFi
+const char* WIFI_SSID     = "YourWiFiName";
+const char* WIFI_PASSWORD = "YourPassword";
+
+// Web UI
+const char* WEB_PASSWORD  = "admin";
+
+// Timing
+#define CHECK_INTERVAL       10000  // Check every 10 seconds
+#define WDT_TIMEOUT          60     // Watchdog timeout (seconds)
+#define FAILURES_BEFORE_RED  2      // Consecutive failures before "down"
+```
+
+Default LED settings: Rain effect, brightness 21, speed 80%, rotation 180°
 
 ## How It Works
 
