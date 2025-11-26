@@ -38,21 +38,32 @@ const char LOGIN_HTML[] PROGMEM = R"rawliteral(
     </div>
   </div>
   <script>
-    const k=localStorage.getItem('imkey');
-    if(k)window.location='/?key='+encodeURIComponent(k);
     document.getElementById('pw').addEventListener('keyup',e=>{if(e.key==='Enter')login()});
     function login(){
       const pw=document.getElementById('pw').value;
-      fetch('/stats?key='+encodeURIComponent(pw))
-        .then(r=>{
-          if(r.ok){
-            localStorage.setItem('imkey',pw);
-            window.location='/?key='+encodeURIComponent(pw);
+      const err=document.getElementById('err');
+      err.classList.remove('show');
+      fetch('/login',{
+        method:'POST',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body:'password='+encodeURIComponent(pw)
+      })
+        .then(r=>r.json().then(d=>({ok:r.ok,data:d})))
+        .then(({ok,data})=>{
+          if(ok){
+            window.location='/';
           }else{
-            document.getElementById('err').classList.add('show');
+            if(data.retry_after){
+              err.textContent='Too many attempts. Try again in '+data.retry_after+'s';
+            }else if(data.attempts!==undefined){
+              err.textContent='Invalid password ('+data.attempts+' attempts left)';
+            }else{
+              err.textContent='Invalid password';
+            }
+            err.classList.add('show');
           }
         })
-        .catch(()=>document.getElementById('err').classList.add('show'));
+        .catch(()=>{err.textContent='Connection error';err.classList.add('show');});
     }
   </script>
 </body>

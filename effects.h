@@ -12,11 +12,10 @@ extern uint8_t fadeStartR, fadeStartG, fadeStartB;
 extern unsigned long fadeStartTime;
 extern uint8_t currentRotation;
 extern uint8_t effectSpeed;
-extern int currentState;
 extern int currentEffect;
 
-// State value for comparison (matches STATE_INTERNET_OK in enum)
-const int STATE_OK = 3;
+// Pass isOnline flag from main loop instead of checking state directly
+extern bool isInternetOK;
 
 // ===========================================
 // LED HELPER FUNCTIONS
@@ -139,8 +138,8 @@ void effectRipple() {
 void effectRainbow() {
   unsigned long now = millis();
   float speedMult = effectSpeed / 50.0;
-  
-  if (currentState == STATE_OK) {
+
+  if (isInternetOK) {
     // Online: Full vibrant rainbow
     for (int row = 0; row < 8; row++) {
       for (int col = 0; col < 8; col++) {
@@ -186,19 +185,41 @@ void effectRainbow() {
   pixels.show();
 }
 
-// --- Effect: Gentle pulse/breathe ---
+// --- Effect: Gentle pulse/breathe between two colors ---
 void effectPulse() {
   unsigned long now = millis();
   float speedMult = effectSpeed / 50.0;
   float cycleTime = 3000.0 / speedMult;
   float phase = fmod(now, cycleTime) / cycleTime;
-  float breath = (sin(phase * 6.2832) + 1.0) / 2.0;
-  breath = 0.4 + 0.6 * breath;
-  
-  uint8_t r = currentR * breath;
-  uint8_t g = currentG * breath;
-  uint8_t b = currentB * breath;
-  
+  float blend = (sin(phase * 6.2832) + 1.0) / 2.0;  // 0.0 to 1.0
+
+  // Accent color based on state (same as ripple)
+  uint8_t r2, g2, b2;
+  if (currentG > currentR && currentG > currentB) {
+    // Green (online) -> cyan accent
+    r2 = 0; g2 = currentG * 0.6; b2 = currentG * 0.6;
+  } else if (currentR > currentG && currentR > currentB) {
+    // Red/orange (offline/error) -> orange accent
+    r2 = currentR; g2 = currentR * 0.3; b2 = 0;
+  } else if (currentB > currentR && currentB > currentG) {
+    // Blue (booting) -> purple accent
+    r2 = currentB * 0.4; g2 = 0; b2 = currentB;
+  } else {
+    // Yellow (degraded) -> amber accent
+    r2 = currentR; g2 = currentG * 0.4; b2 = 0;
+  }
+
+  // Blend between main color and accent
+  uint8_t r = currentR + (int)(r2 - currentR) * blend;
+  uint8_t g = currentG + (int)(g2 - currentG) * blend;
+  uint8_t b = currentB + (int)(b2 - currentB) * blend;
+
+  // Also add subtle brightness variation
+  float breath = 0.7 + 0.3 * blend;
+  r *= breath;
+  g *= breath;
+  b *= breath;
+
   for (int i = 0; i < NUM_LEDS; i++) {
     pixels.setPixelColor(i, pixels.Color(r, g, b));
   }

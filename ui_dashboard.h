@@ -63,18 +63,16 @@ const char DASHBOARD_CSS[] PROGMEM = R"rawliteral(
     }
 )rawliteral";
 
-// Dashboard JavaScript (KEY placeholder will be replaced)
+// Dashboard JavaScript (uses cookies for auth)
 const char DASHBOARD_JS[] PROGMEM = R"rawliteral(
-    const K='%KEY%';
-    function q(p){return p+(p.includes('?')?'&':'?')+'key='+encodeURIComponent(K)}
-    function E(e){fetch(q('/effect?e='+e));document.querySelectorAll('.grid .btn').forEach((b,i)=>b.classList.toggle('active',i===e))}
-    function B(v){document.getElementById('bv').textContent=v+'/50';fetch(q('/brightness?b='+v))}
-    function S(v){document.getElementById('sv').textContent=v+'%';fetch(q('/speed?s='+v))}
-    function R(r){fetch(q('/rotation?r='+r));document.querySelectorAll('.rot-btn').forEach((b,i)=>b.classList.toggle('active',i===r))}
-    function logout(){localStorage.removeItem('imkey');window.location='/';}
+    function E(e){fetch('/effect?e='+e,{credentials:'same-origin'});document.querySelectorAll('.grid .btn').forEach((b,i)=>b.classList.toggle('active',i===e))}
+    function B(v){document.getElementById('bv').textContent=v+'/50';fetch('/brightness?b='+v,{credentials:'same-origin'})}
+    function S(v){document.getElementById('sv').textContent=v+'%';fetch('/speed?s='+v,{credentials:'same-origin'})}
+    function R(r){fetch('/rotation?r='+r,{credentials:'same-origin'});document.querySelectorAll('.rot-btn').forEach((b,i)=>b.classList.toggle('active',i===r))}
+    function logout(){fetch('/logout',{credentials:'same-origin'}).then(()=>window.location='/');}
     function fmt(ms){let s=Math.floor(ms/1000),m=Math.floor(s/60),h=Math.floor(m/60),d=Math.floor(h/24);let r='';if(d)r+=d+'d ';if(h%24)r+=(h%24)+'h ';if(m%60)r+=(m%60)+'m ';r+=(s%60)+'s';return r}
     const colors={3:'#22c55e',4:'#f59e0b',5:'#ef4444',2:'#ef4444',0:'#3b82f6',1:'#3b82f6'};
-    function upd(){fetch(q('/stats')).then(r=>{if(!r.ok)throw'';return r.json()}).then(d=>{
+    function upd(){fetch('/stats',{credentials:'same-origin'}).then(r=>{if(!r.ok){window.location='/';throw'';}return r.json()}).then(d=>{
       document.getElementById('up').textContent=fmt(d.uptime);
       document.getElementById('chk').textContent=d.checks;
       const rate=document.getElementById('rate');rate.textContent=d.rate+'%';rate.className='stat-val '+(d.rate>95?'good':'bad');

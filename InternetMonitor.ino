@@ -62,9 +62,17 @@ uint8_t effectSpeed = 80;
 
 // Timing
 unsigned long lastCheck = 0;
-unsigned long lastHeartbeat = 0;
 unsigned long stateChangeTime = 0;
 unsigned long bootTime = 0;
+
+// Session management
+String sessionToken = "";
+
+// Rate limiting
+int loginAttempts = 0;
+unsigned long lockoutUntil = 0;
+const int MAX_LOGIN_ATTEMPTS = 5;
+const unsigned long LOCKOUT_DURATION = 60000;  // 1 minute
 
 // Stats
 unsigned long totalChecks = 0;
@@ -82,6 +90,9 @@ uint8_t currentR = 0, currentG = 0, currentB = 0;
 uint8_t targetR = 0, targetG = 0, targetB = 0;
 unsigned long fadeStartTime = 0;
 uint8_t fadeStartR = 0, fadeStartG = 0, fadeStartB = 0;
+
+// Status flag for effects
+bool isInternetOK = false;
 
 // Include effects after globals are defined
 #include "effects.h"
@@ -148,7 +159,8 @@ void changeState(State newState) {
   
   currentState = newState;
   stateChangeTime = millis();
-  
+  isInternetOK = (newState == STATE_INTERNET_OK);
+
   switch (newState) {
     case STATE_BOOTING:
       setTargetColor(0, 0, 80);
@@ -189,9 +201,46 @@ String formatUptime(unsigned long ms) {
   return result;
 }
 
+String generateToken() {
+  String token = "";
+  const char chars[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  for (int i = 0; i < 32; i++) {
+    token += chars[random(0, 62)];
+  }
+  return token;
+}
+
 bool checkAuth() {
-  if (server.hasArg("key")) {
-    return server.arg("key") == WEB_PASSWORD;
+  // Check session token in cookie or header
+  if (server.hasHeader("Cookie")) {
+    String cookie = server.header("Cookie");
+    int idx = cookie.indexOf("session=");
+    if (idx >= 0) {
+      String token = cookie.substring(idx + 8);
+      int end = token.indexOf(';');
+      if (end > 0) token = token.substring(0, end);
+      if (token.length() > 0 && token == sessionToken) {
+        return true;
+      }
+    }
+  }
+  // Also check Authorization header for API calls
+  if (server.hasHeader("Authorization")) {
+    String auth = server.header("Authorization");
+    String token = auth.substring(7);
+    if (token.length() > 0 && token == sessionToken) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool isLockedOut() {
+  if (millis() < lockoutUntil) {
+    return true;
+  }
+  if (millis() >= lockoutUntil && loginAttempts >= MAX_LOGIN_ATTEMPTS) {
+    loginAttempts = 0;  // Reset after lockout expires
   }
   return false;
 }
@@ -208,17 +257,52 @@ float getChipTemp() {
 // WEB HANDLERS
 // ===========================================
 
+void handleLogin() {
+  if (server.method() != HTTP_POST) {
+    server.send(405, "application/json", "{\"error\":\"method not allowed\"}");
+    return;
+  }
+
+  if (isLockedOut()) {
+    unsigned long remaining = (lockoutUntil - millis()) / 1000;
+    server.send(429, "application/json", "{\"error\":\"too many attempts\",\"retry_after\":" + String(remaining) + "}");
+    return;
+  }
+
+  String password = server.arg("password");
+
+  if (password == WEB_PASSWORD) {
+    loginAttempts = 0;
+    sessionToken = generateToken();
+
+    // Max-Age=31536000 = 1 year (browser will remember)
+    server.sendHeader("Set-Cookie", "session=" + sessionToken + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000");
+    server.send(200, "application/json", "{\"success\":true,\"token\":\"" + sessionToken + "\"}");
+  } else {
+    loginAttempts++;
+    if (loginAttempts >= MAX_LOGIN_ATTEMPTS) {
+      lockoutUntil = millis() + LOCKOUT_DURATION;
+    }
+    server.send(401, "application/json", "{\"error\":\"invalid password\",\"attempts\":" + String(MAX_LOGIN_ATTEMPTS - loginAttempts) + "}");
+  }
+}
+
+void handleLogout() {
+  sessionToken = "";
+  server.sendHeader("Set-Cookie", "session=; Path=/; HttpOnly; Max-Age=0");
+  server.send(200, "application/json", "{\"success\":true}");
+}
+
 void handleRoot() {
   if (!checkAuth()) {
     server.send(200, "text/html", LOGIN_HTML);
     return;
   }
 
-  // Build dashboard
+  // Build dashboard using chunked response to reduce memory fragmentation
   unsigned long uptime = millis() - bootTime;
   float successRate = totalChecks > 0 ? (100.0 * successfulChecks / totalChecks) : 100;
-  String key = server.arg("key");
-  
+
   String stateStr, stateColor;
   switch (currentState) {
     case STATE_INTERNET_OK: stateStr = "ONLINE"; stateColor = "#22c55e"; break;
@@ -228,95 +312,90 @@ void handleRoot() {
     default: stateStr = "STARTING"; stateColor = "#3b82f6"; break;
   }
 
-  // Build HTML
-  String html = "<!DOCTYPE html><html><head>";
-  html += "<meta charset=\"UTF-8\">";
-  html += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
-  html += "<title>Internet Monitor</title>";
-  html += "<style>";
-  html += FPSTR(DASHBOARD_CSS);
-  html += "</style></head><body>";
-  
-  html += "<div class=\"wrap\">";
-  
-  // Header
-  html += "<div class=\"hdr\"><div class=\"hdr-left\">";
-  html += "<h1>Internet Monitor</h1>";
-  html += "<p class=\"sub\">ESP32-S3 MATRIX</p>";
-  html += "</div><button class=\"logout\" onclick=\"logout()\">Logout</button></div>";
-  
-  // Status
-  html += "<div class=\"status\">";
-  html += "<span class=\"status-dot\" id=\"dot\" style=\"background:" + stateColor + ";box-shadow:0 0 8px " + stateColor + "\"></span>";
-  html += "<span class=\"status-text\" id=\"stxt\" style=\"color:" + stateColor + "\">" + stateStr + "</span>";
-  html += "</div>";
-  
-  // Effect card
-  html += "<div class=\"card\"><div class=\"card-title\">Effect</div>";
-  html += "<div class=\"grid\">";
-  html += "<button class=\"btn off" + String(currentEffect == 0 ? " active" : "") + "\" onclick=\"E(0)\">Off</button>";
-  html += "<button class=\"btn" + String(currentEffect == 1 ? " active" : "") + "\" onclick=\"E(1)\">Solid</button>";
-  html += "<button class=\"btn" + String(currentEffect == 2 ? " active" : "") + "\" onclick=\"E(2)\">Ripple</button>";
-  html += "<button class=\"btn" + String(currentEffect == 3 ? " active" : "") + "\" onclick=\"E(3)\">Rainbow</button>";
-  html += "<button class=\"btn" + String(currentEffect == 4 ? " active" : "") + "\" onclick=\"E(4)\">Pulse</button>";
-  html += "<button class=\"btn" + String(currentEffect == 5 ? " active" : "") + "\" onclick=\"E(5)\">Rain</button>";
-  html += "</div>";
-  
-  // Brightness
-  html += "<div class=\"slider-row\"><div class=\"slider-label\"><span>Brightness</span>";
-  html += "<span class=\"slider-val\" id=\"bv\">" + String(currentBrightness) + "/50</span></div>";
-  html += "<input type=\"range\" min=\"5\" max=\"50\" value=\"" + String(currentBrightness) + "\" oninput=\"B(this.value)\"></div>";
-  
-  // Speed
-  html += "<div class=\"slider-row\"><div class=\"slider-label\"><span>Speed</span>";
-  html += "<span class=\"slider-val\" id=\"sv\">" + String(effectSpeed) + "%</span></div>";
-  html += "<input type=\"range\" min=\"10\" max=\"100\" value=\"" + String(effectSpeed) + "\" oninput=\"S(this.value)\"></div>";
-  
-  // Rotation
-  html += "<div class=\"rot-row\"><span>Rotation</span>";
-  html += "<button class=\"rot-btn" + String(currentRotation == 0 ? " active" : "") + "\" onclick=\"R(0)\">0°</button>";
-  html += "<button class=\"rot-btn" + String(currentRotation == 1 ? " active" : "") + "\" onclick=\"R(1)\">90°</button>";
-  html += "<button class=\"rot-btn" + String(currentRotation == 2 ? " active" : "") + "\" onclick=\"R(2)\">180°</button>";
-  html += "<button class=\"rot-btn" + String(currentRotation == 3 ? " active" : "") + "\" onclick=\"R(3)\">270°</button>";
-  html += "</div></div>";
-  
-  // Statistics
-  html += "<div class=\"card\"><div class=\"card-title\">Statistics</div>";
-  html += "<div class=\"stat\"><span class=\"stat-label\">Uptime</span><span class=\"stat-val\" id=\"up\">" + formatUptime(uptime) + "</span></div>";
-  html += "<div class=\"stat\"><span class=\"stat-label\">Checks</span><span class=\"stat-val\" id=\"chk\">" + String(totalChecks) + "</span></div>";
-  html += "<div class=\"stat\"><span class=\"stat-label\">Success Rate</span><span class=\"stat-val\" id=\"rate\">" + String(successRate, 1) + "%</span></div>";
-  html += "<div class=\"stat\"><span class=\"stat-label\">Failed</span><span class=\"stat-val\" id=\"fail\">" + String(failedChecks) + "</span></div>";
-  html += "<div class=\"stat\"><span class=\"stat-label\">Last Outage</span><span class=\"stat-val\" id=\"last\">" + (lastDowntime > 0 ? formatUptime(lastDowntime) : "None") + "</span></div>";
-  html += "<div class=\"stat\"><span class=\"stat-label\">Total Downtime</span><span class=\"stat-val\" id=\"down\">" + formatUptime(totalDowntimeMs) + "</span></div>";
-  html += "</div>";
-  
-  // Network
-  html += "<div class=\"card\"><div class=\"card-title\">Network</div>";
-  html += "<div class=\"stat\"><span class=\"stat-label\">SSID</span><span class=\"stat-val\">" + String(WIFI_SSID) + "</span></div>";
-  html += "<div class=\"stat\"><span class=\"stat-label\">IP</span><span class=\"stat-val\">" + WiFi.localIP().toString() + "</span></div>";
-  html += "<div class=\"stat\"><span class=\"stat-label\">Signal</span><span class=\"stat-val\" id=\"rssi\">" + String(WiFi.RSSI()) + " dBm</span></div>";
-  html += "<div class=\"stat\"><span class=\"stat-label\">MAC</span><span class=\"stat-val\">" + WiFi.macAddress() + "</span></div>";
-  html += "<div class=\"stat\"><span class=\"stat-label\">Channel</span><span class=\"stat-val\">" + String(WiFi.channel()) + "</span></div>";
-  html += "</div>";
-  
-  // System
-  html += "<div class=\"card\"><div class=\"card-title\">System</div>";
-  html += "<div class=\"stat\"><span class=\"stat-label\">Free Heap</span><span class=\"stat-val\" id=\"heap\">" + String(ESP.getFreeHeap() / 1024) + " KB</span></div>";
-  html += "<div class=\"stat\"><span class=\"stat-label\">Chip Temp</span><span class=\"stat-val\" id=\"temp\">" + String(getChipTemp(), 1) + "°C</span></div>";
-  html += "<div class=\"stat\"><span class=\"stat-label\">Firmware</span><span class=\"stat-val\">v" + String(FW_VERSION) + "</span></div>";
-  html += "</div>";
-  
-  html += "<div class=\"footer\">OTA Updates Enabled</div>";
-  html += "</div>";
-  
-  // JavaScript
-  html += "<script>";
-  String js = FPSTR(DASHBOARD_JS);
-  js.replace("%KEY%", key);
-  html += js;
-  html += "</script></body></html>";
+  // Use chunked transfer to reduce memory fragmentation
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, "text/html", "");
 
-  server.send(200, "text/html", html);
+  // Head
+  server.sendContent("<!DOCTYPE html><html><head>");
+  server.sendContent("<meta charset=\"UTF-8\">");
+  server.sendContent("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+  server.sendContent("<title>Internet Monitor</title><style>");
+  server.sendContent(FPSTR(DASHBOARD_CSS));
+  server.sendContent("</style></head><body><div class=\"wrap\">");
+
+  // Header
+  server.sendContent("<div class=\"hdr\"><div class=\"hdr-left\">");
+  server.sendContent("<h1>Internet Monitor</h1>");
+  server.sendContent("<p class=\"sub\">ESP32-S3 MATRIX</p>");
+  server.sendContent("</div><button class=\"logout\" onclick=\"logout()\">Logout</button></div>");
+
+  // Status
+  server.sendContent("<div class=\"status\">");
+  server.sendContent("<span class=\"status-dot\" id=\"dot\" style=\"background:" + stateColor + ";box-shadow:0 0 8px " + stateColor + "\"></span>");
+  server.sendContent("<span class=\"status-text\" id=\"stxt\" style=\"color:" + stateColor + "\">" + stateStr + "</span>");
+  server.sendContent("</div>");
+
+  // Effect card
+  server.sendContent("<div class=\"card\"><div class=\"card-title\">Effect</div><div class=\"grid\">");
+  server.sendContent("<button class=\"btn off" + String(currentEffect == 0 ? " active" : "") + "\" onclick=\"E(0)\">Off</button>");
+  server.sendContent("<button class=\"btn" + String(currentEffect == 1 ? " active" : "") + "\" onclick=\"E(1)\">Solid</button>");
+  server.sendContent("<button class=\"btn" + String(currentEffect == 2 ? " active" : "") + "\" onclick=\"E(2)\">Ripple</button>");
+  server.sendContent("<button class=\"btn" + String(currentEffect == 3 ? " active" : "") + "\" onclick=\"E(3)\">Rainbow</button>");
+  server.sendContent("<button class=\"btn" + String(currentEffect == 4 ? " active" : "") + "\" onclick=\"E(4)\">Pulse</button>");
+  server.sendContent("<button class=\"btn" + String(currentEffect == 5 ? " active" : "") + "\" onclick=\"E(5)\">Rain</button>");
+  server.sendContent("</div>");
+
+  // Brightness
+  server.sendContent("<div class=\"slider-row\"><div class=\"slider-label\"><span>Brightness</span>");
+  server.sendContent("<span class=\"slider-val\" id=\"bv\">" + String(currentBrightness) + "/50</span></div>");
+  server.sendContent("<input type=\"range\" min=\"5\" max=\"50\" value=\"" + String(currentBrightness) + "\" oninput=\"B(this.value)\"></div>");
+
+  // Speed
+  server.sendContent("<div class=\"slider-row\"><div class=\"slider-label\"><span>Speed</span>");
+  server.sendContent("<span class=\"slider-val\" id=\"sv\">" + String(effectSpeed) + "%</span></div>");
+  server.sendContent("<input type=\"range\" min=\"10\" max=\"100\" value=\"" + String(effectSpeed) + "\" oninput=\"S(this.value)\"></div>");
+
+  // Rotation
+  server.sendContent("<div class=\"rot-row\"><span>Rotation</span>");
+  server.sendContent("<button class=\"rot-btn" + String(currentRotation == 0 ? " active" : "") + "\" onclick=\"R(0)\">0°</button>");
+  server.sendContent("<button class=\"rot-btn" + String(currentRotation == 1 ? " active" : "") + "\" onclick=\"R(1)\">90°</button>");
+  server.sendContent("<button class=\"rot-btn" + String(currentRotation == 2 ? " active" : "") + "\" onclick=\"R(2)\">180°</button>");
+  server.sendContent("<button class=\"rot-btn" + String(currentRotation == 3 ? " active" : "") + "\" onclick=\"R(3)\">270°</button>");
+  server.sendContent("</div></div>");
+
+  // Statistics
+  server.sendContent("<div class=\"card\"><div class=\"card-title\">Statistics</div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Uptime</span><span class=\"stat-val\" id=\"up\">" + formatUptime(uptime) + "</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Checks</span><span class=\"stat-val\" id=\"chk\">" + String(totalChecks) + "</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Success Rate</span><span class=\"stat-val\" id=\"rate\">" + String(successRate, 1) + "%</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Failed</span><span class=\"stat-val\" id=\"fail\">" + String(failedChecks) + "</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Last Outage</span><span class=\"stat-val\" id=\"last\">" + (lastDowntime > 0 ? formatUptime(lastDowntime) : "None") + "</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Total Downtime</span><span class=\"stat-val\" id=\"down\">" + formatUptime(totalDowntimeMs) + "</span></div>");
+  server.sendContent("</div>");
+
+  // Network
+  server.sendContent("<div class=\"card\"><div class=\"card-title\">Network</div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">SSID</span><span class=\"stat-val\">" + String(WIFI_SSID) + "</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">IP</span><span class=\"stat-val\">" + WiFi.localIP().toString() + "</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Signal</span><span class=\"stat-val\" id=\"rssi\">" + String(WiFi.RSSI()) + " dBm</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">MAC</span><span class=\"stat-val\">" + WiFi.macAddress() + "</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Channel</span><span class=\"stat-val\">" + String(WiFi.channel()) + "</span></div>");
+  server.sendContent("</div>");
+
+  // System
+  server.sendContent("<div class=\"card\"><div class=\"card-title\">System</div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Free Heap</span><span class=\"stat-val\" id=\"heap\">" + String(ESP.getFreeHeap() / 1024) + " KB</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Chip Temp</span><span class=\"stat-val\" id=\"temp\">" + String(getChipTemp(), 1) + "°C</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Firmware</span><span class=\"stat-val\">v" + String(FW_VERSION) + "</span></div>");
+  server.sendContent("</div>");
+
+  server.sendContent("<div class=\"footer\">OTA Updates Enabled</div></div>");
+
+  // JavaScript
+  server.sendContent("<script>");
+  server.sendContent(FPSTR(DASHBOARD_JS));
+  server.sendContent("</script></body></html>");
 }
 
 void handleEffect() {
@@ -405,7 +484,13 @@ void handleStats() {
 }
 
 void setupWebServer() {
+  // Collect headers for cookie-based auth
+  const char* headerKeys[] = {"Cookie", "Authorization"};
+  server.collectHeaders(headerKeys, 2);
+
   server.on("/", handleRoot);
+  server.on("/login", HTTP_POST, handleLogin);
+  server.on("/logout", handleLogout);
   server.on("/stats", handleStats);
   server.on("/effect", handleEffect);
   server.on("/brightness", handleBrightness);

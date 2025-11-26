@@ -22,7 +22,7 @@ A visual internet connectivity monitor using the Waveshare ESP32-S3-Matrix. Know
 - **False alarm prevention** — requires 2 consecutive failures before showing "down"
 - **Watchdog timer** — auto-reboots if device hangs (60 second timeout)
 - **6 LED effects** — Off, Solid, Ripple, Rainbow, Pulse, Rain
-- **Password-protected web dashboard** — control effects, brightness, speed, and rotation
+- **Secure web dashboard** — session-based auth with rate-limited login
 - **OTA updates** — update firmware over WiFi without USB
 
 ## Hardware
@@ -56,14 +56,14 @@ A visual internet connectivity monitor using the Waveshare ESP32-S3-Matrix. Know
 |--------|-------------|
 | Off | LEDs disabled |
 | Solid | Static color, no animation |
-| Ripple | Diagonal wave pattern |
-| Rainbow | Flowing rainbow tinted by status color |
-| Pulse | Breathing/fading animation |
+| Ripple | Diagonal wave with accent color |
+| Rainbow | Flowing rainbow (full color when online) |
+| Pulse | Breathing between main and accent color |
 | Rain | Falling droplets |
 
 ## Web Interface
 
-Access via device IP address. Password-protected with configurable password.
+Access via device IP address. Sessions persist until device reboots or you logout. Rate limiting locks out after 5 failed login attempts (1 minute cooldown).
 
 **Login**
 
@@ -87,9 +87,13 @@ Statistics shown:
 
 ## API Endpoints
 
+All endpoints except `/login` require a valid session cookie.
+
 | Endpoint | Description |
 |----------|-------------|
-| `GET /` | Web dashboard |
+| `GET /` | Web dashboard (or login page) |
+| `POST /login` | Authenticate (body: `password=xxx`) |
+| `GET /logout` | End session |
 | `GET /stats` | JSON stats |
 | `GET /effect?e={0-5}` | Set effect |
 | `GET /brightness?b={5-50}` | Set brightness |
