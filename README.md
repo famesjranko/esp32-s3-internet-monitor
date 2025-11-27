@@ -21,7 +21,7 @@ A visual internet connectivity monitor using the Waveshare ESP32-S3-Matrix. Know
 - **Real-time monitoring** — checks connectivity every 10 seconds
 - **False alarm prevention** — requires 2 consecutive failures before showing "down"
 - **Watchdog timer** — auto-reboots if device hangs (60 second timeout)
-- **6 LED effects** — Off, Solid, Ripple, Rainbow, Pulse, Rain
+- **5 LED effects** — Solid, Ripple, Rainbow, Pulse, Rain
 - **Secure web dashboard** — session-based auth with rate-limited login
 - **OTA updates** — update firmware over WiFi without USB
 
