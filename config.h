@@ -11,7 +11,7 @@ const char* WIFI_PASSWORD = ""; // Set this!
 // WEB UI CONFIGURATION
 // ===========================================
 const char* WEB_PASSWORD  = "admin";  // Change this!
-const char* FW_VERSION    = "0.1.0";
+const char* FW_VERSION    = "0.2.0";
 
 // ===========================================
 // HARDWARE CONFIGURATION
@@ -34,6 +34,26 @@ const char* FW_VERSION    = "0.1.0";
 // FAILURE THRESHOLD
 // ===========================================
 #define FAILURES_BEFORE_RED  2   // Need 2 consecutive failures to show red
+
+// ===========================================
+// CONFIG PORTAL CONFIGURATION
+// ===========================================
+#define CONFIG_AP_SSID        "InternetMonitor-Setup"
+#define CONFIG_AP_CHANNEL     1       // WiFi channel for AP
+#define CONFIG_PORTAL_TIMEOUT 600000  // 10 min auto-exit from portal
+#define NVS_WRITE_DELAY_MS    3000    // Debounce NVS writes (flash wear protection)
+
+// ===========================================
+// NVS STORAGE KEYS
+// ===========================================
+#define NVS_NAMESPACE         "imon"
+#define NVS_KEY_SSID          "ssid"
+#define NVS_KEY_PASSWORD      "password"
+#define NVS_KEY_CONFIGURED    "configured"
+#define NVS_KEY_BRIGHTNESS    "brightness"
+#define NVS_KEY_EFFECT        "effect"
+#define NVS_KEY_ROTATION      "rotation"
+#define NVS_KEY_SPEED         "speed"
 
 // ===========================================
 // CHECK URLs (multiple for redundancy)

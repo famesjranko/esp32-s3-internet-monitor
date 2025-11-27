@@ -37,6 +37,8 @@ const char DASHBOARD_CSS[] PROGMEM = R"rawliteral(
     .stat-label{color:#707088}
     .stat-val{font-weight:600;color:#b8b8c8}
     .good{color:#22c55e}.bad{color:#ef4444}
+    .btn-danger{background:#7f1d1d;border-color:#991b1b;color:#fca5a5;margin-top:14px;padding-top:14px;border-top:1px solid #252540}
+    .btn-danger:hover{background:#991b1b;color:#fef2f2}
     .footer{text-align:center;padding:14px;font-size:.65rem;color:#505068}
     @media(min-width:700px){
       body{display:flex;align-items:center;justify-content:center;padding:24px}
@@ -70,8 +72,9 @@ const char DASHBOARD_JS[] PROGMEM = R"rawliteral(
     function S(v){document.getElementById('sv').textContent=v+'%';fetch('/speed?s='+v,{credentials:'same-origin'})}
     function R(r){fetch('/rotation?r='+r,{credentials:'same-origin'});document.querySelectorAll('.rot-btn').forEach((b,i)=>b.classList.toggle('active',i===r))}
     function logout(){fetch('/logout',{credentials:'same-origin'}).then(()=>window.location='/');}
+    function resetWifi(){if(confirm('Reset WiFi settings?\n\nDevice will reboot into setup mode.')){fetch('/reset-wifi',{credentials:'same-origin'}).then(r=>r.json()).then(d=>{alert('To reconfigure:\n\n1. Connect to WiFi: '+d.ssid+'\n2. Go to http://192.168.4.1\n\nRebooting...')}).catch(()=>alert('Rebooting...'))}}
     function fmt(ms){let s=Math.floor(ms/1000),m=Math.floor(s/60),h=Math.floor(m/60),d=Math.floor(h/24);let r='';if(d)r+=d+'d ';if(h%24)r+=(h%24)+'h ';if(m%60)r+=(m%60)+'m ';r+=(s%60)+'s';return r}
-    const colors={3:'#22c55e',4:'#f59e0b',5:'#ef4444',2:'#ef4444',0:'#3b82f6',1:'#3b82f6'};
+    const colors={4:'#22c55e',5:'#f59e0b',6:'#ef4444',3:'#ef4444',2:'#c026d3',0:'#3b82f6',1:'#3b82f6'};
     function upd(){fetch('/stats',{credentials:'same-origin'}).then(r=>{if(!r.ok){window.location='/';throw'';}return r.json()}).then(d=>{
       document.getElementById('up').textContent=fmt(d.uptime);
       document.getElementById('chk').textContent=d.checks;

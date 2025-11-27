@@ -18,7 +18,9 @@ An ESP32-S3 powered internet connectivity monitor featuring an 8x8 WS2812B RGB L
 - **Real-time monitoring** — checks connectivity every 10 seconds
 - **False alarm prevention** — requires 2 consecutive failures before showing "down"
 - **Watchdog timer** — auto-reboots if device hangs (60 second timeout)
-- **5 LED effects** — Solid, Ripple, Rainbow, Pulse, Rain (plus Off)
+- **6 LED effects** — Solid, Ripple, Rainbow, Pulse, Rain (plus Off)
+- **WiFi provisioning** — configure WiFi via captive portal (no recompiling needed)
+- **Persistent settings** — brightness, effect, speed, rotation saved to flash
 - **Secure web dashboard** — session-based auth with rate-limited login
 - **OTA updates** — update firmware over WiFi without USB
 
@@ -40,10 +42,12 @@ An ESP32-S3 powered internet connectivity monitor featuring an 8x8 WS2812B RGB L
 1. Set up Arduino IDE for ESP32-S3-Matrix: [Waveshare Wiki Guide](https://www.waveshare.com/wiki/ESP32-S3-Matrix#Working_with_Arduino)
 2. Clone or download this repo, then **rename the folder to `InternetMonitor`** (Arduino requires the folder name to match the `.ino` filename)
 3. Install **Adafruit NeoPixel** library via Library Manager
-4. Edit `config.h` — set your WiFi credentials and web password
+4. Edit `config.h` — set your web password (WiFi can be configured later via portal)
 5. Upload to board
-6. Check Serial Monitor (115200 baud) for IP address
-7. Open IP in browser and login with your password
+6. Connect to `InternetMonitor-Setup` WiFi network (password: your web password)
+7. Go to `http://192.168.4.1`, login, and select your WiFi network
+8. Device reboots and connects — check Serial Monitor (115200 baud) for IP address
+9. Open IP in browser and login with your password
 
 ## How It Works
 
@@ -64,7 +68,8 @@ An ESP32-S3 powered internet connectivity monitor featuring an 8x8 WS2812B RGB L
 | 🟠 Orange | Internet down (2+ consecutive failures) |
 | 🔴 Red | WiFi disconnected |
 | 🔵 Blue | Booting / Connecting to WiFi |
-| 🟣 Purple | OTA update in progress |
+| 🟣 Purple | WiFi setup portal active |
+| 🟪 Magenta | OTA update in progress |
 
 ### Effects
 
@@ -91,6 +96,27 @@ An ESP32-S3 powered internet connectivity monitor featuring an 8x8 WS2812B RGB L
 | Effect | Booting | Connecting | WiFi Lost | OTA |
 |:-------|:------:|:--------:|:-------:|:---:|
 | **Pulse** &nbsp;&nbsp;&nbsp;&nbsp;&thinsp; | <img src="images/led_effects_gifs/pulse_booting.gif" width="150"> | <img src="images/led_effects_gifs/pulse_connecting.gif" width="150"> | <img src="images/led_effects_gifs/pulse_wifi_lost.gif" width="150"> | <img src="images/led_effects_gifs/ota_progress.gif" width="150"> |
+
+## WiFi Setup
+
+Configure WiFi via the captive portal or hardcode credentials in `config.h` — your choice.
+
+![WiFi Setup Portal](images/webgui-3.jpg)
+
+**First-time setup:**
+1. Device starts in setup mode (purple LEDs)
+2. Connect to `InternetMonitor-Setup` WiFi (password: your web password from `config.h`)
+3. Go to `http://192.168.4.1` and login
+4. Select your WiFi network and enter password
+5. Device reboots and connects
+
+**Changing WiFi later:**
+1. Open the web dashboard
+2. Scroll to Network section
+3. Click "Reset WiFi Settings"
+4. Device reboots into setup mode
+
+Settings (brightness, effect, speed, rotation) are saved to flash and persist across reboots and WiFi changes.
 
 ## Web Interface
 
@@ -121,20 +147,17 @@ Statistics shown:
 ```
 InternetMonitor/
 ├── InternetMonitor.ino   # Main logic, setup, loop
-├── config.h              # WiFi, password, timing settings
+├── config.h              # Password, timing settings
 ├── effects.h             # LED effect functions
 ├── ui_login.h            # Login page HTML
-└── ui_dashboard.h        # Dashboard HTML/CSS/JS
+├── ui_dashboard.h        # Dashboard HTML/CSS/JS
+└── ui_portal.h           # WiFi setup portal HTML/CSS/JS
 ```
 
 Edit `config.h` to customize:
 
 ```cpp
-// WiFi
-const char* WIFI_SSID     = "YourWiFiName";
-const char* WIFI_PASSWORD = "YourPassword";
-
-// Web UI
+// Password for web dashboard and WiFi setup portal
 const char* WEB_PASSWORD  = "admin";
 
 // Timing
@@ -142,6 +165,8 @@ const char* WEB_PASSWORD  = "admin";
 #define WDT_TIMEOUT          60     // Watchdog timeout (seconds)
 #define FAILURES_BEFORE_RED  2      // Consecutive failures before "down"
 ```
+
+WiFi credentials are configured via the setup portal and stored in flash.
 
 Default LED settings: Rain effect, brightness 21, speed 80%, rotation 180°
 
@@ -159,6 +184,7 @@ All endpoints except `/login` require a valid session cookie.
 | `GET /brightness?b={5-50}` | Set brightness |
 | `GET /speed?s={10-100}` | Set speed |
 | `GET /rotation?r={0-3}` | Set rotation |
+| `GET /reset-wifi` | Clear WiFi credentials and reboot into setup mode |
 
 ## OTA Updates
 
