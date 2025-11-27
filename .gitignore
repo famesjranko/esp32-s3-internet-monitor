@@ -1,0 +1,36 @@
+# Arduino IDE
+*.elf
+*.bin
+*.map
+*.eep
+*.hex
+build/
+
+# ESP-IDF
+sdkconfig.old
+dependencies.lock
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Secrets (if accidentally created outside config.h)
+secrets.h
+credentials.h
+
+# And others
+CLAUDE.md
+.cursorrules
+.cursor/
+.github/copilot-instructions.md
+.aider*
+.codeium/
+.tabnine/
+.continue/
