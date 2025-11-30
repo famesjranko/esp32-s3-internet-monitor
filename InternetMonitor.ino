@@ -1,7 +1,11 @@
 /*
- * ESP32-S3 Internet Monitor
+ * ESP32-S3 Internet Monitor - DUAL CORE OPTIMIZED
+ * 
+ * Core 0: LED effects (smooth 60fps, never blocks)
+ * Core 1: Network operations (WiFi, HTTP checks, web server)
  * 
  * Features:
+ * - Dual-core architecture for smooth LED animations
  * - Multiple fallback check URLs
  * - Consecutive failure threshold
  * - Watchdog timer (auto-reboot on hang)
@@ -22,9 +26,21 @@
 #include <esp_task_wdt.h>
 
 #include "config.h"
-#include "ui_login.h"
-#include "ui_dashboard.h"
-#include "ui_portal.h"
+#include "web/ui_login.h"
+#include "web/ui_dashboard.h"
+#include "web/ui_portal.h"
+
+// ===========================================
+// DUAL CORE CONFIGURATION
+// ===========================================
+
+#define LED_CORE 0          // Core for LED effects (smooth animation)
+#define NETWORK_CORE 1      // Core for network operations
+#define LED_TASK_PRIORITY 2 // Higher priority for smooth animation
+#define NET_TASK_PRIORITY 1 // Lower priority for network
+
+TaskHandle_t ledTaskHandle = NULL;
+TaskHandle_t networkTaskHandle = NULL;
 
 // ===========================================
 // STATE MACHINE
@@ -45,24 +61,85 @@ enum Effect {
   EFFECT_SOLID,
   EFFECT_RIPPLE,
   EFFECT_RAINBOW,
-  EFFECT_PULSE,
-  EFFECT_RAIN
+  EFFECT_RAIN,
+  EFFECT_MATRIX,
+  EFFECT_FIRE,
+  EFFECT_PLASMA,
+  EFFECT_OCEAN,
+  EFFECT_NEBULA,
+  EFFECT_LIFE,
+  EFFECT_PONG,
+  EFFECT_METABALLS,
+  EFFECT_INTERFERENCE,
+  EFFECT_NOISE,
+  EFFECT_RIPPLE_POOL,
+  EFFECT_RINGS,
+  EFFECT_BALL,
+  NUM_EFFECTS  // = 18
+};
+
+// Per-effect default brightness and speed
+// Format: {brightness, speed}
+const uint8_t effectDefaults[][2] = {
+  {5, 50},    // 0: Off (doesn't matter)
+  {5, 50},    // 1: Solid (speed doesn't matter)
+  {10, 72},   // 2: Ripple
+  {5, 72},    // 3: Rainbow
+  {10, 36},   // 4: Rain
+  {5, 50},    // 5: Matrix
+  {5, 51},    // 6: Fire
+  {5, 100},   // 7: Plasma
+  {5, 58},    // 8: Ocean
+  {5, 58},    // 9: Nebula
+  {5, 25},    // 10: Life
+  {5, 36},    // 11: Pong
+  {5, 100},   // 12: Metaballs
+  {5, 50},    // 13: Interference
+  {5, 84},    // 14: Noise
+  {5, 80},    // 15: Pool
+  {10, 57},   // 16: Rings
+  {25, 57},   // 17: Ball
 };
 
 // ===========================================
-// GLOBALS
+// GLOBALS (volatile for cross-core access)
 // ===========================================
 
 Adafruit_NeoPixel pixels(NUM_LEDS, RGB_PIN, NEO_RGB + NEO_KHZ800);
 WebServer server(80);
 
-// State
-int currentState = STATE_BOOTING;
-int currentEffect = EFFECT_RAIN;
-const char* effectNames[] = {"Off", "Solid", "Ripple", "Rainbow", "Pulse", "Rain"};
-uint8_t currentBrightness = 21;
-uint8_t currentRotation = 2;
-uint8_t effectSpeed = 80;
+// Mutex for thread-safe state changes
+portMUX_TYPE stateMux = portMUX_INITIALIZER_UNLOCKED;
+
+// Lookup tables for fast math (defined here, used in effects)
+int8_t sinLUT[SIN_TABLE_SIZE];
+bool lutInitialized = false;
+
+// State - volatile for cross-core access
+volatile int currentState = STATE_BOOTING;
+volatile int currentEffect = EFFECT_RAIN;  // Default effect on boot
+const char* effectNames[] = {
+  "Off", "Solid", "Ripple", "Rainbow", "Rain",
+  "Matrix", "Fire", "Plasma", "Ocean", "Nebula", "Life",
+  "Pong", "Metaballs", "Interference", "Noise", "Pool", "Rings", "Ball"
+};
+// Brightness and speed initialized from per-effect defaults in setup()
+volatile uint8_t currentBrightness = 10;
+volatile uint8_t currentRotation = DEFAULT_ROTATION;
+volatile uint8_t effectSpeed = 36;
+
+// Colors for fading - volatile for cross-core access
+volatile uint8_t currentR = 0, currentG = 0, currentB = 0;
+volatile uint8_t targetR = 0, targetG = 0, targetB = 0;
+unsigned long fadeStartTime = 0;
+uint8_t fadeStartR = 0, fadeStartG = 0, fadeStartB = 0;
+
+// Status flag for effects - volatile for cross-core access
+volatile bool isInternetOK = false;
+
+// LED task control
+volatile bool ledTaskRunning = true;
+volatile bool ledTaskPaused = false;
 
 // Timing
 unsigned long lastCheck = 0;
@@ -89,15 +166,6 @@ unsigned long totalDowntimeMs = 0;
 unsigned long downtimeStart = 0;
 bool wasDown = false;
 
-// Colors for fading
-uint8_t currentR = 0, currentG = 0, currentB = 0;
-uint8_t targetR = 0, targetG = 0, targetB = 0;
-unsigned long fadeStartTime = 0;
-uint8_t fadeStartR = 0, fadeStartG = 0, fadeStartB = 0;
-
-// Status flag for effects
-bool isInternetOK = false;
-
 // Config portal
 DNSServer dnsServer;
 Preferences preferences;
@@ -105,49 +173,232 @@ bool configPortalActive = false;
 unsigned long lastPortalActivity = 0;
 String cachedNetworkListHTML = "";
 
-
 // Stored credentials (loaded from NVS or config.h fallback)
 String storedSSID = "";
 String storedPassword = "";
+String storedWebPassword = "admin";  // Default password
 
 // NVS settings debounce
 bool settingsPendingSave = false;
 unsigned long lastSettingChangeTime = 0;
 
+// ===========================================
+// PERFORMANCE MONITORING
+// ===========================================
+
+// FPS tracking
+volatile unsigned long ledFrameCount = 0;
+volatile float ledActualFPS = 60.0;
+volatile unsigned long ledFrameTimeUs = 0;
+volatile unsigned long ledMaxFrameTimeUs = 0;
+
+// Task stack monitoring
+volatile unsigned long ledStackHighWater = 0;
+volatile unsigned long netStackHighWater = 0;
+
+// Performance logging interval
+#define PERF_LOG_INTERVAL 5000  // Log every 5 seconds
+
+// ===========================================
+// REUSABLE HTTP CLIENT
+// ===========================================
+HTTPClient httpClient;
+bool httpClientInitialized = false;
 
 // Include effects after globals are defined
 #include "effects.h"
 
 // ===========================================
-// INTERNET CHECK
+// LED TASK (Core 0) - Smooth 60fps animation
+// ===========================================
+
+void ledTask(void* parameter) {
+  const TickType_t frameDelay = pdMS_TO_TICKS(16);  // ~60fps (16.67ms per frame)
+  TickType_t lastWakeTime = xTaskGetTickCount();
+  
+  // FPS tracking variables
+  unsigned long frameCount = 0;
+  unsigned long lastFPSReport = millis();
+  unsigned long frameStartUs;
+  unsigned long maxFrameUs = 0;
+  
+  Serial.println("[LED Task] Started on Core " + String(xPortGetCoreID()));
+  
+  // Add this task to watchdog
+  esp_task_wdt_add(NULL);
+  
+  while (ledTaskRunning) {
+    esp_task_wdt_reset();
+    frameStartUs = micros();
+    
+    if (!ledTaskPaused) {
+      // Update fade and apply effect
+      updateFade();
+      applyEffect();
+    }
+    
+    // Measure frame time
+    unsigned long frameUs = micros() - frameStartUs;
+    ledFrameTimeUs = frameUs;
+    if (frameUs > maxFrameUs) maxFrameUs = frameUs;
+    
+    frameCount++;
+    ledFrameCount++;
+    
+    // Report FPS every 5 seconds
+    unsigned long now = millis();
+    if (now - lastFPSReport >= PERF_LOG_INTERVAL) {
+      float fps = (float)frameCount * 1000.0 / (now - lastFPSReport);
+      ledActualFPS = fps;
+      ledMaxFrameTimeUs = maxFrameUs;
+      ledStackHighWater = uxTaskGetStackHighWaterMark(NULL);
+      
+      Serial.printf("[LED] FPS: %.1f | Frame: %lu us (max %lu us) | Stack: %lu bytes free\n", 
+        fps, ledFrameTimeUs, maxFrameUs, ledStackHighWater * 4);
+      
+      frameCount = 0;
+      maxFrameUs = 0;
+      lastFPSReport = now;
+    }
+    
+    // Use vTaskDelayUntil for precise timing
+    vTaskDelayUntil(&lastWakeTime, frameDelay);
+  }
+  
+  esp_task_wdt_delete(NULL);
+  vTaskDelete(NULL);
+}
+
+// ===========================================
+// NETWORK TASK (Core 1) - Internet checking
+// ===========================================
+
+void networkTask(void* parameter) {
+  const TickType_t checkDelay = pdMS_TO_TICKS(100);  // Check every 100ms
+  
+  // Performance tracking
+  unsigned long lastPerfReport = millis();
+  unsigned long checkCount = 0;
+  unsigned long totalCheckTimeMs = 0;
+  
+  Serial.println("[Network Task] Started on Core " + String(xPortGetCoreID()));
+  
+  // Add this task to watchdog
+  esp_task_wdt_add(NULL);
+  
+  while (true) {
+    esp_task_wdt_reset();
+    
+    // Update stack high water mark periodically
+    unsigned long now = millis();
+    if (now - lastPerfReport >= PERF_LOG_INTERVAL) {
+      netStackHighWater = uxTaskGetStackHighWaterMark(NULL);
+      
+      if (checkCount > 0) {
+        Serial.printf("[Net] Checks: %lu | Avg time: %lu ms | Stack: %lu bytes free\n",
+          checkCount, totalCheckTimeMs / checkCount, netStackHighWater * 4);
+      }
+      
+      checkCount = 0;
+      totalCheckTimeMs = 0;
+      lastPerfReport = now;
+    }
+    
+    // Skip if in config portal mode
+    if (configPortalActive) {
+      vTaskDelay(checkDelay);
+      continue;
+    }
+    
+    // Check WiFi status
+    if (WiFi.status() != WL_CONNECTED) {
+      if (currentState != STATE_WIFI_LOST && currentState != STATE_CONNECTING_WIFI && 
+          currentState != STATE_CONFIG_PORTAL && currentState != STATE_BOOTING) {
+        Serial.println("[Network] WiFi lost!");
+        changeState(STATE_WIFI_LOST);
+      }
+      vTaskDelay(checkDelay);
+      continue;
+    }
+    
+    // WiFi recovered
+    if (currentState == STATE_WIFI_LOST) {
+      Serial.println("[Network] WiFi recovered");
+      changeState(STATE_INTERNET_OK);
+    }
+    
+    // Internet check (non-blocking timing)
+    now = millis();
+    if (now - lastCheck >= CHECK_INTERVAL) {
+      lastCheck = now;
+      
+      unsigned long checkStart = millis();
+      Serial.print("[Network] Checking... ");
+      int successes = checkInternet();
+      unsigned long checkTime = millis() - checkStart;
+      
+      checkCount++;
+      totalCheckTimeMs += checkTime;
+      
+      totalChecks++;
+      
+      if (successes >= 1) {
+        Serial.printf("OK (%lu ms)\n", checkTime);
+        successfulChecks++;
+        consecutiveFailures = 0;
+        consecutiveSuccesses++;
+        
+        if (currentState != STATE_INTERNET_OK) {
+          changeState(STATE_INTERNET_OK);
+        }
+      } else {
+        Serial.printf("FAIL (%lu ms)\n", checkTime);
+        failedChecks++;
+        consecutiveFailures++;
+        consecutiveSuccesses = 0;
+        
+        if (consecutiveFailures >= FAILURES_BEFORE_RED) {
+          changeState(STATE_INTERNET_DOWN);
+        } else {
+          changeState(STATE_INTERNET_DEGRADED);
+        }
+      }
+    }
+    
+    vTaskDelay(checkDelay);
+  }
+}
+
+// ===========================================
+// INTERNET CHECK (reuses HTTP client)
 // ===========================================
 
 bool checkSingleUrl(const char* url) {
-  HTTPClient http;
-  http.setConnectTimeout(2000);
-  http.setTimeout(3000);
+  // Reuse the global HTTP client for connection pooling
+  httpClient.setConnectTimeout(2000);
+  httpClient.setTimeout(3000);
+  httpClient.setReuse(true);  // Enable connection reuse
   
-  if (!http.begin(url)) {
+  if (!httpClient.begin(url)) {
     return false;
   }
   
-  int code = http.GET();
-  http.end();
+  int code = httpClient.GET();
+  httpClient.end();
   return (code == 204 || code == 200);
 }
 
 int checkInternet() {
   int successes = 0;
   
+  // Try up to 2 URLs, return early on first success
   for (int i = 0; i < 2; i++) {
     esp_task_wdt_reset();
     
     if (checkSingleUrl(checkUrls[i])) {
       successes++;
-      if (successes >= 1) {
-        esp_task_wdt_reset();
-        return successes;
-      }
+      esp_task_wdt_reset();
+      return successes;  // Early return on success
     }
     
     esp_task_wdt_reset();
@@ -157,13 +408,16 @@ int checkInternet() {
 }
 
 // ===========================================
-// STATE MANAGEMENT
+// STATE MANAGEMENT (thread-safe with mutex)
 // ===========================================
 
 void changeState(State newState) {
   if (currentState == newState) return;
   
-  Serial.print("State: ");
+  // Use mutex for thread-safe state changes
+  portENTER_CRITICAL(&stateMux);
+  
+  Serial.print("[State] ");
   Serial.print(currentState);
   Serial.print(" -> ");
   Serial.println(newState);
@@ -182,27 +436,30 @@ void changeState(State newState) {
   stateChangeTime = millis();
   isInternetOK = (newState == STATE_INTERNET_OK);
 
+  portEXIT_CRITICAL(&stateMux);
+
+  // Set colors based on state (using config.h constants)
   switch (newState) {
     case STATE_BOOTING:
-      setTargetColor(0, 0, 80);
+      setTargetColor(COLOR_BOOTING_R, COLOR_BOOTING_G, COLOR_BOOTING_B);
       break;
     case STATE_CONNECTING_WIFI:
-      setTargetColor(0, 40, 80);
+      setTargetColor(COLOR_CONNECTING_R, COLOR_CONNECTING_G, COLOR_CONNECTING_B);
       break;
     case STATE_CONFIG_PORTAL:
-      setTargetColor(40, 0, 80);  // Purple
+      setTargetColor(COLOR_PORTAL_R, COLOR_PORTAL_G, COLOR_PORTAL_B);
       break;
     case STATE_WIFI_LOST:
-      setTargetColor(100, 0, 0);
+      setTargetColor(COLOR_WIFI_LOST_R, COLOR_WIFI_LOST_G, COLOR_WIFI_LOST_B);
       break;
     case STATE_INTERNET_OK:
-      setTargetColor(0, 80, 0);
+      setTargetColor(COLOR_OK_R, COLOR_OK_G, COLOR_OK_B);
       break;
     case STATE_INTERNET_DEGRADED:
-      setTargetColor(80, 60, 0);
+      setTargetColor(COLOR_DEGRADED_R, COLOR_DEGRADED_G, COLOR_DEGRADED_B);
       break;
     case STATE_INTERNET_DOWN:
-      setTargetColor(100, 20, 0);
+      setTargetColor(COLOR_DOWN_R, COLOR_DOWN_G, COLOR_DOWN_B);
       break;
   }
 }
@@ -224,6 +481,10 @@ String formatUptime(unsigned long ms) {
   result += String(seconds % 60) + "s";
   return result;
 }
+
+// ===========================================
+// AUTH & TOKENS
+// ===========================================
 
 String generateToken() {
   String token = "";
@@ -288,6 +549,8 @@ bool loadCredentialsFromNVS() {
     storedSSID = preferences.getString(NVS_KEY_SSID, "");
     storedPassword = preferences.getString(NVS_KEY_PASSWORD, "");
   }
+  // Always try to load web password (may exist even if WiFi not configured)
+  storedWebPassword = preferences.getString(NVS_KEY_WEB_PASSWORD, "admin");
   preferences.end();
 
   Serial.print("NVS configured: ");
@@ -326,12 +589,20 @@ void clearNVSCredentials() {
 void loadSettingsFromNVS() {
   preferences.begin(NVS_NAMESPACE, true);  // read-only
 
-  // Only load if values exist (getBool/getUChar return default if key doesn't exist)
-  if (preferences.isKey(NVS_KEY_BRIGHTNESS)) {
-    currentBrightness = preferences.getUChar(NVS_KEY_BRIGHTNESS, currentBrightness);
-  }
+  // Load effect first (needed to get per-effect defaults)
   if (preferences.isKey(NVS_KEY_EFFECT)) {
     currentEffect = preferences.getUChar(NVS_KEY_EFFECT, currentEffect);
+  }
+  
+  // Apply per-effect defaults, then override with saved values if they exist
+  if (currentEffect < NUM_EFFECTS) {
+    currentBrightness = effectDefaults[currentEffect][0];
+    effectSpeed = effectDefaults[currentEffect][1];
+  }
+  
+  // Override with saved values if they exist
+  if (preferences.isKey(NVS_KEY_BRIGHTNESS)) {
+    currentBrightness = preferences.getUChar(NVS_KEY_BRIGHTNESS, currentBrightness);
   }
   if (preferences.isKey(NVS_KEY_ROTATION)) {
     currentRotation = preferences.getUChar(NVS_KEY_ROTATION, currentRotation);
@@ -391,7 +662,7 @@ void handleLogin() {
 
   String password = server.arg("password");
 
-  if (password == WEB_PASSWORD) {
+  if (password == storedWebPassword) {
     loginAttempts = 0;
     sessionToken = generateToken();
 
@@ -447,7 +718,7 @@ void handleRoot() {
   // Header
   server.sendContent("<div class=\"hdr\"><div class=\"hdr-left\">");
   server.sendContent("<h1>Internet Monitor</h1>");
-  server.sendContent("<p class=\"sub\">ESP32-S3 MATRIX</p>");
+  server.sendContent("<p class=\"sub\">ESP32-S3 MATRIX • DUAL CORE</p>");
   server.sendContent("</div><button class=\"logout\" onclick=\"logout()\">Logout</button></div>");
 
   // Status
@@ -456,33 +727,44 @@ void handleRoot() {
   server.sendContent("<span class=\"status-text\" id=\"stxt\" style=\"color:" + stateColor + "\">" + stateStr + "</span>");
   server.sendContent("</div>");
 
-  // Effect card
-  server.sendContent("<div class=\"card\"><div class=\"card-title\">Effect</div><div class=\"grid\">");
+  // Effects card - collapsible, all effects in one grid
+  server.sendContent("<div class=\"card\"><div class=\"card-title collapsible\" id=\"effectsT\" onclick=\"T('effects')\"><span>Effects</span><span class=\"toggle\">▼</span></div>");
+  server.sendContent("<div class=\"card-body\" id=\"effectsB\"><div class=\"grid\">");
   server.sendContent("<button class=\"btn off" + String(currentEffect == 0 ? " active" : "") + "\" onclick=\"E(0)\">Off</button>");
   server.sendContent("<button class=\"btn" + String(currentEffect == 1 ? " active" : "") + "\" onclick=\"E(1)\">Solid</button>");
   server.sendContent("<button class=\"btn" + String(currentEffect == 2 ? " active" : "") + "\" onclick=\"E(2)\">Ripple</button>");
   server.sendContent("<button class=\"btn" + String(currentEffect == 3 ? " active" : "") + "\" onclick=\"E(3)\">Rainbow</button>");
-  server.sendContent("<button class=\"btn" + String(currentEffect == 4 ? " active" : "") + "\" onclick=\"E(4)\">Pulse</button>");
-  server.sendContent("<button class=\"btn" + String(currentEffect == 5 ? " active" : "") + "\" onclick=\"E(5)\">Rain</button>");
+  server.sendContent("<button class=\"btn" + String(currentEffect == 4 ? " active" : "") + "\" onclick=\"E(4)\">Rain</button>");
+  server.sendContent("<button class=\"btn" + String(currentEffect == 5 ? " active" : "") + "\" onclick=\"E(5)\">Matrix</button>");
+  server.sendContent("<button class=\"btn" + String(currentEffect == 6 ? " active" : "") + "\" onclick=\"E(6)\">Fire</button>");
+  server.sendContent("<button class=\"btn" + String(currentEffect == 7 ? " active" : "") + "\" onclick=\"E(7)\">Plasma</button>");
+  server.sendContent("<button class=\"btn" + String(currentEffect == 8 ? " active" : "") + "\" onclick=\"E(8)\">Ocean</button>");
+  server.sendContent("<button class=\"btn" + String(currentEffect == 9 ? " active" : "") + "\" onclick=\"E(9)\">Nebula</button>");
+  server.sendContent("<button class=\"btn" + String(currentEffect == 10 ? " active" : "") + "\" onclick=\"E(10)\">Life</button>");
+  server.sendContent("<button class=\"btn" + String(currentEffect == 11 ? " active" : "") + "\" onclick=\"E(11)\">Pong</button>");
+  server.sendContent("<button class=\"btn" + String(currentEffect == 12 ? " active" : "") + "\" onclick=\"E(12)\">Metaballs</button>");
+  server.sendContent("<button class=\"btn" + String(currentEffect == 13 ? " active" : "") + "\" onclick=\"E(13)\">Interference</button>");
+  server.sendContent("<button class=\"btn" + String(currentEffect == 14 ? " active" : "") + "\" onclick=\"E(14)\">Noise</button>");
+  server.sendContent("<button class=\"btn" + String(currentEffect == 15 ? " active" : "") + "\" onclick=\"E(15)\">Pool</button>");
+  server.sendContent("<button class=\"btn" + String(currentEffect == 16 ? " active" : "") + "\" onclick=\"E(16)\">Rings</button>");
+  server.sendContent("<button class=\"btn" + String(currentEffect == 17 ? " active" : "") + "\" onclick=\"E(17)\">Ball</button>");
   server.sendContent("</div>");
 
-  // Brightness
+  // Settings sliders within effects card
   server.sendContent("<div class=\"slider-row\"><div class=\"slider-label\"><span>Brightness</span>");
   server.sendContent("<span class=\"slider-val\" id=\"bv\">" + String(currentBrightness) + "/50</span></div>");
   server.sendContent("<input type=\"range\" min=\"5\" max=\"50\" value=\"" + String(currentBrightness) + "\" oninput=\"B(this.value)\"></div>");
 
-  // Speed
   server.sendContent("<div class=\"slider-row\"><div class=\"slider-label\"><span>Speed</span>");
   server.sendContent("<span class=\"slider-val\" id=\"sv\">" + String(effectSpeed) + "%</span></div>");
   server.sendContent("<input type=\"range\" min=\"10\" max=\"100\" value=\"" + String(effectSpeed) + "\" oninput=\"S(this.value)\"></div>");
 
-  // Rotation
   server.sendContent("<div class=\"rot-row\"><span>Rotation</span>");
   server.sendContent("<button class=\"rot-btn" + String(currentRotation == 0 ? " active" : "") + "\" onclick=\"R(0)\">0°</button>");
   server.sendContent("<button class=\"rot-btn" + String(currentRotation == 1 ? " active" : "") + "\" onclick=\"R(1)\">90°</button>");
   server.sendContent("<button class=\"rot-btn" + String(currentRotation == 2 ? " active" : "") + "\" onclick=\"R(2)\">180°</button>");
   server.sendContent("<button class=\"rot-btn" + String(currentRotation == 3 ? " active" : "") + "\" onclick=\"R(3)\">270°</button>");
-  server.sendContent("</div></div>");
+  server.sendContent("</div></div></div>");
 
   // Statistics
   server.sendContent("<div class=\"card\"><div class=\"card-title\">Statistics</div>");
@@ -501,17 +783,37 @@ void handleRoot() {
   server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Signal</span><span class=\"stat-val\" id=\"rssi\">" + String(WiFi.RSSI()) + " dBm</span></div>");
   server.sendContent("<div class=\"stat\"><span class=\"stat-label\">MAC</span><span class=\"stat-val\">" + WiFi.macAddress() + "</span></div>");
   server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Channel</span><span class=\"stat-val\">" + String(WiFi.channel()) + "</span></div>");
-  server.sendContent("<button class=\"btn btn-danger\" style=\"width:100%;margin-top:12px\" onclick=\"resetWifi()\">Reset WiFi Settings</button>");
   server.sendContent("</div>");
 
-  // System
-  server.sendContent("<div class=\"card\"><div class=\"card-title\">System</div>");
+  // System - collapsible, default collapsed
+  server.sendContent("<div class=\"card\"><div class=\"card-title collapsible collapsed\" id=\"sysT\" onclick=\"T('sys')\"><span>System</span><span class=\"toggle\">▼</span></div>");
+  server.sendContent("<div class=\"card-body collapsed\" id=\"sysB\">");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Architecture</span><span class=\"stat-val\">Dual Core ESP32-S3</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">CPU Freq</span><span class=\"stat-val\">" + String(ESP.getCpuFreqMHz()) + " MHz</span></div>");
   server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Free Heap</span><span class=\"stat-val\" id=\"heap\">" + String(ESP.getFreeHeap() / 1024) + " KB</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Min Free Heap</span><span class=\"stat-val\" id=\"minheap\">" + String(ESP.getMinFreeHeap() / 1024) + " KB</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Flash Size</span><span class=\"stat-val\">" + String(ESP.getFlashChipSize() / 1024 / 1024) + " MB</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Sketch Size</span><span class=\"stat-val\">" + String(ESP.getSketchSize() / 1024) + " KB</span></div>");
   server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Chip Temp</span><span class=\"stat-val\" id=\"temp\">" + String(getChipTemp(), 1) + "°C</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">OTA Updates</span><span class=\"stat-val good\">Enabled</span></div>");
   server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Firmware</span><span class=\"stat-val\">v" + String(FW_VERSION) + "</span></div>");
-  server.sendContent("</div>");
+  server.sendContent("</div></div>");
 
-  server.sendContent("<div class=\"footer\">OTA Updates Enabled</div></div>");
+  // Diagnostics - collapsible, default collapsed
+  server.sendContent("<div class=\"card\"><div class=\"card-title collapsible collapsed\" id=\"diagT\" onclick=\"T('diag')\"><span>Diagnostics</span><span class=\"toggle\">▼</span></div>");
+  server.sendContent("<div class=\"card-body collapsed\" id=\"diagB\">");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">LED FPS</span><span class=\"stat-val\" id=\"fps\">" + String(ledActualFPS, 1) + "</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Frame Time</span><span class=\"stat-val\" id=\"frameus\">" + String(ledFrameTimeUs) + " µs</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Max Frame Time</span><span class=\"stat-val\" id=\"maxframeus\">" + String(ledMaxFrameTimeUs) + " µs</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">LED Stack Free</span><span class=\"stat-val\" id=\"ledstack\">" + String(ledStackHighWater * 4) + " bytes</span></div>");
+  server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Net Stack Free</span><span class=\"stat-val\" id=\"netstack\">" + String(netStackHighWater * 4) + " bytes</span></div>");
+  server.sendContent("</div></div>");
+
+  // Factory Reset - at bottom
+  server.sendContent("<div class=\"card\"><div class=\"card-title\">Danger Zone</div>");
+  server.sendContent("<button class=\"btn btn-danger\" style=\"width:100%\" onclick=\"factoryReset()\">Factory Reset</button>");
+  server.sendContent("<p style=\"font-size:.65rem;color:#707088;margin-top:8px;text-align:center\">Clears WiFi, password, and all settings</p>");
+  server.sendContent("</div></div>");
 
   // JavaScript
   server.sendContent("<script>");
@@ -523,11 +825,28 @@ void handleEffect() {
   if (!checkAuth()) { sendUnauthorized(); return; }
   if (server.hasArg("e")) {
     int effect = server.arg("e").toInt();
-    if (effect >= 0 && effect <= 5) {
+    if (effect >= 0 && effect < NUM_EFFECTS) {
       currentEffect = effect;
+      resetAllEffectState();  // Reset all effect state for clean start
+      
+      // Apply per-effect default brightness and speed
+      currentBrightness = effectDefaults[effect][0];
+      effectSpeed = effectDefaults[effect][1];
+      pixels.setBrightness(currentBrightness);
+      
       markSettingsChanged();
       Serial.print("Effect: ");
-      Serial.println(effectNames[currentEffect]);
+      Serial.print(effectNames[currentEffect]);
+      Serial.print(" (brightness=");
+      Serial.print(currentBrightness);
+      Serial.print(", speed=");
+      Serial.print(effectSpeed);
+      Serial.println(")");
+      
+      // Return new values so UI can update
+      String json = "{\"brightness\":" + String(currentBrightness) + ",\"speed\":" + String(effectSpeed) + "}";
+      server.send(200, "application/json", json);
+      return;
     }
   }
   server.send(200, "text/plain", "OK");
@@ -576,22 +895,33 @@ void handleSpeed() {
   server.send(200, "text/plain", "OK");
 }
 
-void handleResetWifi() {
+void handleFactoryReset() {
   if (!checkAuth()) { sendUnauthorized(); return; }
 
-  Serial.println("WiFi reset requested - clearing credentials");
+  Serial.println("FACTORY RESET requested via web UI");
 
-  // Clear WiFi credentials from NVS
+  // Clear ALL NVS data
   preferences.begin(NVS_NAMESPACE, false);
-  preferences.remove(NVS_KEY_SSID);
-  preferences.remove(NVS_KEY_PASSWORD);
-  preferences.putBool(NVS_KEY_CONFIGURED, false);
+  preferences.clear();
   preferences.end();
 
   String json = "{\"success\":true,\"ssid\":\"" + String(CONFIG_AP_SSID) + "\"}";
   server.send(200, "application/json", json);
 
-  delay(1000);
+  // Flash LEDs to confirm
+  for (int j = 0; j < 3; j++) {
+    for (int i = 0; i < NUM_LEDS; i++) {
+      pixels.setPixelColor(i, pixels.Color(80, 80, 80));
+    }
+    pixels.show();
+    delay(150);
+    pixels.clear();
+    pixels.show();
+    delay(150);
+  }
+
+  Serial.println("Rebooting...");
+  delay(500);
   ESP.restart();
 }
 
@@ -609,14 +939,21 @@ void handleStats() {
     default: stateStr = "STARTING"; break;
   }
 
-  char json[256];
+  char json[768];
   snprintf(json, sizeof(json),
     "{\"state\":%d,\"stateText\":\"%s\",\"uptime\":%lu,\"checks\":%lu,"
     "\"rate\":%.1f,\"failed\":%lu,\"downtime\":%lu,\"lastOutage\":%lu,"
-    "\"rssi\":%d,\"heap\":%u,\"temp\":%.1f,\"version\":\"%s\"}",
+    "\"rssi\":%d,\"heap\":%u,\"minHeap\":%u,\"temp\":%.1f,\"cpuFreq\":%u,"
+    "\"ledFps\":%.1f,\"ledFrameUs\":%lu,\"ledMaxFrameUs\":%lu,"
+    "\"ledStack\":%lu,\"netStack\":%lu,"
+    "\"effects\":19,\"dualCore\":true,\"version\":\"%s\"}",
     currentState, stateStr, millis() - bootTime, totalChecks,
     successRate, failedChecks, totalDowntimeMs, lastDowntime,
-    WiFi.RSSI(), ESP.getFreeHeap(), getChipTemp(), FW_VERSION);
+    WiFi.RSSI(), ESP.getFreeHeap(), ESP.getMinFreeHeap(), getChipTemp(),
+    ESP.getCpuFreqMHz(),
+    ledActualFPS, ledFrameTimeUs, ledMaxFrameTimeUs,
+    ledStackHighWater * 4, netStackHighWater * 4,
+    FW_VERSION);
 
   server.send(200, "application/json", json);
 }
@@ -634,7 +971,7 @@ void setupWebServer() {
   server.on("/brightness", handleBrightness);
   server.on("/rotation", handleRotation);
   server.on("/speed", handleSpeed);
-  server.on("/reset-wifi", handleResetWifi);
+  server.on("/factory-reset", handleFactoryReset);
   server.begin();
   Serial.println("Web server started");
 }
@@ -645,9 +982,16 @@ void setupWebServer() {
 
 void setupOTA() {
   ArduinoOTA.setHostname("internet-monitor");
+  // Use same password as web dashboard
+  ArduinoOTA.setPassword(storedWebPassword.c_str());
   
   ArduinoOTA.onStart([]() {
     Serial.println("OTA starting...");
+    // Pause LED task during OTA
+    ledTaskPaused = true;
+    vTaskDelay(pdMS_TO_TICKS(50));  // Wait for current frame
+    // Disable watchdog during OTA to prevent resets
+    esp_task_wdt_delete(NULL);
     fillMatrixImmediate(40, 0, 40);
   });
   
@@ -663,11 +1007,15 @@ void setupOTA() {
       pixels.setPixelColor(i, i < ledsOn ? pixels.Color(40, 0, 40) : pixels.Color(5, 0, 5));
     }
     pixels.show();
+    yield();  // Let system tasks run
   });
   
   ArduinoOTA.onError([](ota_error_t error) {
     Serial.printf("OTA Error[%u]\n", error);
     fillMatrixImmediate(50, 0, 0);
+    ledTaskPaused = false;  // Resume on error
+    // Re-enable watchdog
+    esp_task_wdt_add(NULL);
   });
   
   ArduinoOTA.begin();
@@ -761,6 +1109,13 @@ void handlePortalRoot() {
   server.sendContent("<div class='card-title'>Enter Password</div>");
   server.sendContent("<p id='selssid'></p>");
   server.sendContent("<input type='password' id='pw' placeholder='WiFi Password'>");
+  server.sendContent("</div>");
+
+  // Admin password (always visible)
+  server.sendContent("<div class='card'>");
+  server.sendContent("<div class='card-title'>Dashboard Password</div>");
+  server.sendContent("<input type='password' id='adminpw' placeholder='Admin password (default: admin)'>");
+  server.sendContent("<p style='font-size:.7rem;color:#707088;margin-top:8px'>Leave blank to use default password: admin</p>");
   server.sendContent("<button class='btn connect' onclick='connect()'>Connect</button>");
   server.sendContent("</div>");
 
@@ -799,6 +1154,11 @@ void handleScan() {
   // n == WIFI_SCAN_FAILED (-2): No scan running, start one
   if (!scanInProgress) {
     Serial.println("Starting async scan...");
+    // Need AP_STA mode to scan while running AP
+    if (WiFi.getMode() == WIFI_AP) {
+      WiFi.mode(WIFI_AP_STA);
+      delay(100);
+    }
     WiFi.scanNetworks(true);  // true = async
     scanInProgress = true;
   }
@@ -811,15 +1171,32 @@ void handleConnect() {
 
   String ssid = server.arg("ssid");
   String password = server.arg("password");
+  String adminPw = server.arg("adminpw");
+  
+  // Use default if blank
+  if (adminPw.length() == 0) {
+    adminPw = "admin";
+  }
 
   Serial.print("Attempting connection to: ");
   Serial.println(ssid);
 
-  // Save credentials to NVS first
+  // Save credentials and admin password to NVS first
   saveCredentialsToNVS(ssid, password);
+  
+  // Save admin password
+  preferences.begin(NVS_NAMESPACE, false);
+  preferences.putString(NVS_KEY_WEB_PASSWORD, adminPw);
+  preferences.end();
+  Serial.println("Admin password saved to NVS");
 
+  // Properly disconnect and reset WiFi before reconnecting
+  WiFi.disconnect(true);  // Disconnect and clear config
+  delay(100);             // Give WiFi time to clean up
+  
   // Try to connect
   WiFi.mode(WIFI_AP_STA);
+  delay(100);
   WiFi.begin(ssid.c_str(), password.c_str());
 
   // Wait for connection (with timeout)
@@ -847,6 +1224,14 @@ void handleConnect() {
     Serial.println("Connection failed");
     // Clear the bad credentials
     clearNVSCredentials();
+    
+    // Reset WiFi back to AP-only mode for portal
+    WiFi.disconnect(true);
+    delay(100);
+    WiFi.mode(WIFI_AP);
+    delay(100);
+    scanInProgress = false;  // Reset scan state
+    
     server.send(200, "application/json", "{\"success\":false,\"error\":\"Connection failed. Check password.\"}");
   }
 }
@@ -997,8 +1382,42 @@ void setupWatchdog() {
     .trigger_panic = true
   };
   esp_task_wdt_init(&wdt_config);
-  esp_task_wdt_add(NULL);
+  esp_task_wdt_add(NULL);  // Add main task
   Serial.println("Watchdog enabled");
+}
+
+// ===========================================
+// START LED TASK
+// ===========================================
+
+void startLEDTask() {
+  xTaskCreatePinnedToCore(
+    ledTask,              // Task function
+    "LEDTask",            // Task name
+    4096,                 // Stack size (bytes)
+    NULL,                 // Task parameters
+    LED_TASK_PRIORITY,    // Priority (higher = more important)
+    &ledTaskHandle,       // Task handle
+    LED_CORE              // Core to run on (0)
+  );
+  Serial.println("LED task created on Core 0");
+}
+
+// ===========================================
+// START NETWORK TASK
+// ===========================================
+
+void startNetworkTask() {
+  xTaskCreatePinnedToCore(
+    networkTask,          // Task function
+    "NetworkTask",        // Task name
+    8192,                 // Stack size (bytes) - larger for HTTP
+    NULL,                 // Task parameters
+    NET_TASK_PRIORITY,    // Priority
+    &networkTaskHandle,   // Task handle
+    NETWORK_CORE          // Core to run on (1)
+  );
+  Serial.println("Network task created on Core 1");
 }
 
 // ===========================================
@@ -1007,23 +1426,34 @@ void setupWatchdog() {
 
 void setup() {
   Serial.begin(115200);
-  delay(1000);
+  delay(500);
   Serial.println("\n\n=== Internet Monitor v" + String(FW_VERSION) + " ===");
+  Serial.println("=== DUAL CORE ARCHITECTURE ===");
+  Serial.printf("Main task running on Core %d\n", xPortGetCoreID());
 
   bootTime = millis();
 
-  // Load settings from NVS first (brightness, effect, etc.)
+  // Initialize lookup tables for fast math in effects
+  initLookupTables();
+  Serial.println("Sin/Cos lookup tables initialized");
+
+  // Init LEDs
+  pixels.begin();
+  
+  // Load settings from NVS (brightness, effect, etc.)
   loadSettingsFromNVS();
 
-  // Init LEDs with loaded brightness
-  pixels.begin();
+  // Apply loaded brightness
   pixels.setBrightness(currentBrightness);
-  fillMatrixImmediate(0, 0, 40);  // Blue during boot
+  fillMatrixImmediate(COLOR_BOOTING_R, COLOR_BOOTING_G, COLOR_BOOTING_B);
 
   changeState(STATE_BOOTING);
 
   // Setup watchdog
   setupWatchdog();
+
+  // Start LED task on Core 0 (runs independently for smooth animation)
+  startLEDTask();
 
   // Try to load credentials from NVS
   if (!loadCredentialsFromNVS()) {
@@ -1031,6 +1461,15 @@ void setup() {
     Serial.println("No NVS credentials, checking config.h fallback");
     storedSSID = WIFI_SSID;
     storedPassword = WIFI_PASSWORD;
+  }
+  
+  // If web password wasn't set in NVS, use config.h fallback
+  if (storedWebPassword == "admin" || storedWebPassword.length() == 0) {
+    // Check if config.h has a non-default password
+    if (strlen(WEB_PASSWORD) > 0 && strcmp(WEB_PASSWORD, "admin") != 0) {
+      storedWebPassword = WEB_PASSWORD;
+      Serial.println("Using config.h web password fallback");
+    }
   }
 
   // Check if we have any credentials to use
@@ -1053,8 +1492,8 @@ void setup() {
   unsigned long wifiStart = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - wifiStart < WIFI_TIMEOUT) {
     delay(100);
-    updateFade();
-    applyEffect();
+    esp_task_wdt_reset();
+    // LED effects continue running on Core 0!
   }
 
   if (WiFi.status() == WL_CONNECTED) {
@@ -1065,6 +1504,9 @@ void setup() {
     setupWebServer();
     setupOTA();
     changeState(STATE_INTERNET_OK);
+    
+    // Start network monitoring task on Core 1
+    startNetworkTask();
   } else {
     Serial.println("\nWiFi connection failed - entering config mode");
     enterConfigMode();
@@ -1072,10 +1514,14 @@ void setup() {
   }
 
   Serial.println("Setup complete!\n");
+  Serial.println("Architecture:");
+  Serial.println("  Core 0: LED effects @ 60fps");
+  Serial.println("  Core 1: Network monitoring");
+  Serial.println("  Main:   Web server + OTA");
 }
 
 // ===========================================
-// MAIN LOOP
+// MAIN LOOP (Core 1 - handles web server)
 // ===========================================
 
 void loop() {
@@ -1085,8 +1531,6 @@ void loop() {
   if (configPortalActive) {
     dnsServer.processNextRequest();
     server.handleClient();
-    updateFade();
-    applyEffect();
 
     // Check for portal timeout (10 min inactivity)
     if (millis() - lastPortalActivity > CONFIG_PORTAL_TIMEOUT) {
@@ -1102,62 +1546,12 @@ void loop() {
   // Save settings to NVS if needed (debounced)
   saveSettingsToNVSIfNeeded();
 
+  // Handle OTA updates
   ArduinoOTA.handle();
+  
+  // Handle web server requests
   server.handleClient();
 
-  updateFade();
-  applyEffect();
-
-  // Check WiFi
-  if (WiFi.status() != WL_CONNECTED) {
-    if (currentState != STATE_WIFI_LOST) {
-      Serial.println("WiFi lost!");
-      changeState(STATE_WIFI_LOST);
-    }
-    esp_task_wdt_reset();
-    delay(10);
-    return;
-  }
-
-  esp_task_wdt_reset();
-
-  if (currentState == STATE_WIFI_LOST) {
-    Serial.println("WiFi recovered");
-    changeState(STATE_INTERNET_OK);
-  }
-
-  // Internet check
-  if (millis() - lastCheck >= CHECK_INTERVAL) {
-    lastCheck = millis();
-    totalChecks++;
-
-    esp_task_wdt_reset();
-    Serial.print("Checking... ");
-    int successes = checkInternet();
-
-    if (successes >= 1) {
-      Serial.println("OK");
-      successfulChecks++;
-      consecutiveFailures = 0;
-      consecutiveSuccesses++;
-
-      if (currentState != STATE_INTERNET_OK) {
-        changeState(STATE_INTERNET_OK);
-      }
-    } else {
-      Serial.println("FAIL");
-      failedChecks++;
-      consecutiveFailures++;
-      consecutiveSuccesses = 0;
-
-      if (consecutiveFailures >= FAILURES_BEFORE_RED) {
-        changeState(STATE_INTERNET_DOWN);
-      } else {
-        changeState(STATE_INTERNET_DEGRADED);
-      }
-    }
-    esp_task_wdt_reset();
-  }
-
-  delay(10);
+  // Small delay to prevent tight loop
+  delay(5);
 }
