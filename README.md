@@ -115,44 +115,74 @@ When you switch effects, brightness and speed automatically adjust to the effect
 
 ## WiFi Setup
 
-Configure WiFi via the captive portal or hardcode credentials in `config.h` — your choice.
+On first boot (or after factory reset), the device enters **Config Mode**:
 
 ![WiFi Setup Portal](images/webgui-3.jpg)
 
 **First-time setup:**
-1. Device starts in setup mode (purple LEDs)
-2. Connect to `InternetMonitor-Setup` WiFi (password: your web password from `config.h`)
-3. Go to `http://192.168.4.1` and login
-4. Select your WiFi network and enter password
-5. Device reboots and connects
+1. Device starts in config mode (purple LEDs)
+2. On your phone/laptop, connect to WiFi network `InternetMonitor-Setup`
+   - Password: `admin` (or whatever you set as `WEB_PASSWORD` in `config.h`)
+3. Open a browser and go to `http://192.168.4.1`
+4. Login with the same password
+5. You'll see available WiFi networks - select yours and enter its password
+6. Optionally set a new admin password (recommended!)
+7. Click Connect - device reboots and connects to your WiFi
+8. Check Serial Monitor (115200 baud) for the device's new IP address
 
-**Changing WiFi later:**
+**Factory Reset:**
+To start over (change WiFi network, forgot password, etc.):
 1. Open the web dashboard
-2. Use Factory Reset in Danger Zone section
-3. Device reboots into setup mode
+2. Scroll to "Danger Zone" section
+3. Click "Factory Reset"
+4. Confirm - device clears all settings and reboots into config mode
+5. Follow first-time setup steps above
 
-Settings (brightness, effect, speed, rotation) are saved to flash and persist across reboots and WiFi changes.
+> **Note:** Factory reset clears WiFi credentials, admin password (resets to `admin`), and all display settings.
 
 ## Web Interface
 
-Access via device IP address. Sessions persist until device reboots or you logout. Rate limiting locks out after 5 failed login attempts (1 minute cooldown).
+Once connected to your WiFi, access the dashboard via the device's IP address.
 
-**Login**
+### Login
 
 ![Login](images/webgui-1.jpg)
 
-**Dashboard**
+- Enter your admin password (default: `admin`)
+- Sessions persist until device reboots or you logout
+- Rate limiting: 5 failed attempts = 1 minute lockout
+
+### Dashboard
 
 ![Dashboard](images/webgui-2.jpg)
 
-**Dashboard sections:**
+**Effects card:**
+- 18 effect buttons - click to switch (brightness/speed auto-adjust to effect defaults)
+- Brightness slider (5-50)
+- Speed slider (10-100%)
+- Rotation buttons (0°, 90°, 180°, 270°)
 
-- **Effects** — effect buttons with brightness, speed, and rotation controls
-- **Statistics** — uptime, checks, success rate, downtime
-- **Network** — SSID, IP, signal strength, MAC, channel
-- **System** — architecture, memory, flash, temperature, OTA status, firmware version (collapsible)
-- **Diagnostics** — LED FPS, frame times, stack usage (collapsible)
-- **Danger Zone** — factory reset button
+**Statistics card:**
+- Uptime, total checks, success rate
+- Failed checks, last outage, total downtime
+
+**Network card:**
+- SSID, IP address, signal strength (RSSI)
+- MAC address, WiFi channel
+
+**System card** (collapsed by default):
+- Architecture, CPU frequency
+- Free heap memory, flash size, sketch size
+- Chip temperature
+- OTA update status
+- Firmware version
+
+**Diagnostics card** (collapsed by default):
+- LED FPS and frame times
+- Stack memory usage
+
+**Danger Zone card:**
+- Factory Reset button - clears everything and reboots to config mode
 
 ## Configuration
 
