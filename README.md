@@ -1,6 +1,18 @@
 # ESP32-S3 Internet Monitor
 
-A visual internet connectivity monitor with an 8x8 RGB LED matrix. Shows green when online, yellow when degraded, red when down. 18 animated effects to choose from.
+An ESP32-S3 powered internet connectivity monitor featuring an 8x8 WS2812B RGB LED matrix. Continuously checks your connection and displays real-time status through color-coded animations — green when online, yellow when degraded, red when offline. Choose from 18 animated effects, control everything via a secure web dashboard, and update firmware over-the-air. Perfect for a desk, server room, or anywhere you want instant visual feedback on your internet connection status.
+
+## Features
+
+- **At-a-glance status** — color-coded LED matrix shows connection state instantly
+- **Real-time monitoring** — checks connectivity every 10 seconds
+- **False alarm prevention** — requires 2 consecutive failures before showing "down"
+- **Watchdog timer** — auto-reboots if device hangs (60 second timeout)
+- **18 LED effects** — each with optimized default brightness and speed
+- **WiFi provisioning** — configure WiFi via captive portal (no recompiling needed)
+- **Persistent settings** — brightness, effect, speed, rotation saved to flash
+- **Secure web dashboard** — session-based auth with rate-limited login
+- **OTA updates** — update firmware over WiFi (uses same password as web UI)
 
 <p align="center">
   <img src="images/led_effects_gifs/rain_online.gif" width="150">
