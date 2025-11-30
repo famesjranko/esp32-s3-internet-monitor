@@ -4,21 +4,22 @@
 // ===========================================
 // WIFI CONFIGURATION
 // ===========================================
-const char* WIFI_SSID     = ""; // Set this!
-const char* WIFI_PASSWORD = ""; // Set this!
+const char* WIFI_SSID     = "";
+const char* WIFI_PASSWORD = ""; 
 
 // ===========================================
 // WEB UI CONFIGURATION
 // ===========================================
-const char* WEB_PASSWORD  = "admin";  // Change this!
-const char* FW_VERSION    = "0.2.0";
+const char* WEB_PASSWORD  = "";
+const char* FW_VERSION    = "0.6.0";
 
 // ===========================================
 // HARDWARE CONFIGURATION
 // ===========================================
 #define RGB_PIN           14
 #define NUM_LEDS          64
-#define LED_BRIGHTNESS    30    // Max 50! Higher can damage board
+#define MATRIX_SIZE       8
+#define LED_BRIGHTNESS    40    // Max 50! Higher can damage board
 
 // ===========================================
 // TIMING CONFIGURATION (milliseconds)
@@ -49,11 +50,83 @@ const char* FW_VERSION    = "0.2.0";
 #define NVS_NAMESPACE         "imon"
 #define NVS_KEY_SSID          "ssid"
 #define NVS_KEY_PASSWORD      "password"
+#define NVS_KEY_WEB_PASSWORD  "webpass"
 #define NVS_KEY_CONFIGURED    "configured"
 #define NVS_KEY_BRIGHTNESS    "brightness"
 #define NVS_KEY_EFFECT        "effect"
 #define NVS_KEY_ROTATION      "rotation"
 #define NVS_KEY_SPEED         "speed"
+
+// ===========================================
+// DEFAULT SETTINGS (used on first boot / factory reset)
+// ===========================================
+// Note: Default effect is EFFECT_RAIN, defined in InternetMonitor.ino after the Effect enum
+// Note: Brightness and speed defaults are per-effect, defined in effectDefaults[]
+#define DEFAULT_ROTATION      2       // 0=0°, 1=90°, 2=180°, 3=270°
+
+// ===========================================
+// STATE COLORS (R, G, B)
+// ===========================================
+#define COLOR_BOOTING_R       0
+#define COLOR_BOOTING_G       0
+#define COLOR_BOOTING_B       80
+
+#define COLOR_CONNECTING_R    0
+#define COLOR_CONNECTING_G    40
+#define COLOR_CONNECTING_B    80
+
+#define COLOR_PORTAL_R        40
+#define COLOR_PORTAL_G        0
+#define COLOR_PORTAL_B        80
+
+#define COLOR_WIFI_LOST_R     100
+#define COLOR_WIFI_LOST_G     0
+#define COLOR_WIFI_LOST_B     0
+
+#define COLOR_OK_R            0
+#define COLOR_OK_G            80
+#define COLOR_OK_B            0
+
+#define COLOR_DEGRADED_R      80
+#define COLOR_DEGRADED_G      60
+#define COLOR_DEGRADED_B      0
+
+#define COLOR_DOWN_R          100
+#define COLOR_DOWN_G          20
+#define COLOR_DOWN_B          0
+
+// ===========================================
+// EFFECT PARAMETERS
+// ===========================================
+// Wave frequencies and amplitudes for effects
+#define WAVE_FREQ_SLOW        0.4f
+#define WAVE_FREQ_MEDIUM      0.7f
+#define WAVE_FREQ_FAST        1.2f
+
+// Brightness thresholds
+#define BRIGHTNESS_MIN_RATIO  0.1f   // Minimum brightness in effects (10%)
+#define BRIGHTNESS_MAX_RATIO  1.0f   // Maximum brightness in effects
+#define HIGHLIGHT_THRESHOLD   0.75f  // When to add highlights (75%)
+
+// Animation timing
+#define ANIM_SPEED_DIVISOR    50.0f  // Base speed calculation divisor
+
+// Fire effect parameters  
+#define FIRE_COOLING_MIN      15
+#define FIRE_COOLING_MAX      25
+#define FIRE_COOLING_PER_ROW  6
+#define FIRE_SPARK_CHANCE     100    // Out of 255
+#define FIRE_HEAT_DECAY       0.9f   // 10% loss as heat rises
+
+// Pool/water effect parameters
+#define WATER_WAVE_FREQ       1.8f
+#define WATER_HIGHLIGHT_THRESH 0.75f
+
+// ===========================================
+// LOOKUP TABLE SIZE
+// ===========================================
+#define SIN_TABLE_SIZE        256
+#define FAST_SQRT_MAGIC       0x5f3759df  // Quake III fast inverse sqrt
 
 // ===========================================
 // CHECK URLs (multiple for redundancy)

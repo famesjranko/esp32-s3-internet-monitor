@@ -79,7 +79,8 @@ function scan(){
 function connect(){
   if(!ssid){document.getElementById('status').textContent='Select a network first';document.getElementById('status').className='status error';return;}
   const pw=document.getElementById('pw')?.value||'';
-  if(!isOpen&&!pw){document.getElementById('status').textContent='Enter password';document.getElementById('status').className='status error';return;}
+  if(!isOpen&&!pw){document.getElementById('status').textContent='Enter WiFi password';document.getElementById('status').className='status error';return;}
+  const adminPw=document.getElementById('adminpw')?.value||'admin';
   const btn=document.querySelector('.btn.connect');
   btn.disabled=true;
   btn.innerHTML='<span class="spinner"></span>Connecting...';
@@ -88,10 +89,10 @@ function connect(){
   fetch('/connect',{
     method:'POST',
     headers:{'Content-Type':'application/x-www-form-urlencoded'},
-    body:'ssid='+encodeURIComponent(ssid)+'&password='+encodeURIComponent(pw)
+    body:'ssid='+encodeURIComponent(ssid)+'&password='+encodeURIComponent(pw)+'&adminpw='+encodeURIComponent(adminPw)
   }).then(r=>r.json()).then(d=>{
     if(d.success){
-      document.getElementById('status').innerHTML='Connected!<br>IP: '+d.ip+'<br><br>Device will restart...';
+      document.getElementById('status').innerHTML='Connected!<br>IP: '+d.ip+'<br><br>Device will restart...<br><br>Login with password: '+(adminPw||'admin');
       document.getElementById('status').className='status success';
       btn.textContent='Connected!';
     }else{
