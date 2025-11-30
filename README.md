@@ -1,6 +1,6 @@
 # ESP32-S3 Internet Monitor
 
-An ESP32-S3 powered internet connectivity monitor featuring an 8x8 WS2812B RGB LED matrix. Continuously checks your connection and displays real-time status through color-coded animations — green when online, yellow when degraded, orange when offline. Choose from 19 animated effects, control everything via a secure web dashboard, and update firmware over-the-air. Perfect for a desk, server room, or anywhere you want instant visual feedback on your internet health.
+An ESP32-S3 powered internet connectivity monitor featuring an 8x8 WS2812B RGB LED matrix. Continuously checks your connection and displays real-time status through color-coded animations — green when online, yellow when degraded, red when offline. Choose from 18 animated effects, control everything via a secure web dashboard, and update firmware over-the-air. Perfect for a desk, server room, or anywhere you want instant visual feedback on your internet health.
 
 <p align="center">
   <img src="images/led_effects_gifs/rain_online.gif" width="150">
@@ -14,17 +14,15 @@ An ESP32-S3 powered internet connectivity monitor featuring an 8x8 WS2812B RGB L
 
 ## Features
 
-- **Dual-core architecture** — LED effects on Core 0 (60fps), network on Core 1 (never blocks)
 - **At-a-glance status** — color-coded LED matrix shows connection state instantly
 - **Real-time monitoring** — checks connectivity every 10 seconds
 - **False alarm prevention** — requires 2 consecutive failures before showing "down"
 - **Watchdog timer** — auto-reboots if device hangs (60 second timeout)
-- **19 LED effects** — Basic, Visual, and Animated categories
+- **18 LED effects** — each with optimized default brightness and speed
+- **WiFi provisioning** — configure WiFi via captive portal (no recompiling needed)
+- **Persistent settings** — brightness, effect, speed, rotation saved to flash
 - **Secure web dashboard** — session-based auth with rate-limited login
-- **Config portal** — captive portal for WiFi setup when not configured
-- **Factory reset** — web UI button to clear all settings
-- **OTA updates** — update firmware over WiFi without USB
-- **Persistent settings** — brightness, effect, speed, rotation survive reboot
+- **OTA updates** — update firmware over WiFi (uses same password as web UI)
 
 ## Hardware
 
@@ -44,53 +42,12 @@ An ESP32-S3 powered internet connectivity monitor featuring an 8x8 WS2812B RGB L
 1. Set up Arduino IDE for ESP32-S3-Matrix: [Waveshare Wiki Guide](https://www.waveshare.com/wiki/ESP32-S3-Matrix#Working_with_Arduino)
 2. Clone or download this repo, then **rename the folder to `InternetMonitor`** (Arduino requires the folder name to match the `.ino` filename)
 3. Install **Adafruit NeoPixel** library via Library Manager
-4. Edit `config.h` — set your WiFi credentials and web password
+4. Edit `config.h` — set your web password (WiFi can be configured later via portal)
 5. Upload to board
-6. Check Serial Monitor (115200 baud) for IP address
-7. Open IP in browser and login with your password
-
-## State Machine
-
-The monitor operates as a state machine with automatic transitions based on WiFi and internet connectivity:
-
-```mermaid
-stateDiagram-v2
-    [*] --> BOOTING: Power on
-    
-    BOOTING --> CONNECTING_WIFI: Init complete
-    BOOTING --> CONFIG_PORTAL: No credentials
-    
-    CONNECTING_WIFI --> INTERNET_OK: WiFi + Internet OK
-    CONNECTING_WIFI --> CONFIG_PORTAL: WiFi timeout (20s)
-    
-    CONFIG_PORTAL --> CONNECTING_WIFI: Credentials saved
-    CONFIG_PORTAL --> [*]: Timeout (10min) → Reboot
-    
-    INTERNET_OK --> INTERNET_DEGRADED: 1 check failed
-    INTERNET_OK --> WIFI_LOST: WiFi disconnected
-    
-    INTERNET_DEGRADED --> INTERNET_OK: Check passed
-    INTERNET_DEGRADED --> INTERNET_DOWN: 2+ consecutive failures
-    INTERNET_DEGRADED --> WIFI_LOST: WiFi disconnected
-    
-    INTERNET_DOWN --> INTERNET_OK: Check passed
-    INTERNET_DOWN --> WIFI_LOST: WiFi disconnected
-    
-    WIFI_LOST --> INTERNET_OK: WiFi reconnected + check passed
-    WIFI_LOST --> CONFIG_PORTAL: Manual trigger
-```
-
-### State Colors
-
-| State | Color | RGB | Description |
-|-------|-------|-----|-------------|
-| BOOTING | 🔵 Blue | 0, 0, 80 | System starting up |
-| CONNECTING_WIFI | 🔵 Cyan-Blue | 0, 40, 80 | Attempting WiFi connection |
-| CONFIG_PORTAL | 🟣 Purple | 40, 0, 80 | AP mode, awaiting setup |
-| WIFI_LOST | 🔴 Red | 100, 0, 0 | WiFi disconnected |
-| INTERNET_OK | 🟢 Green | 0, 80, 0 | All checks passing |
-| INTERNET_DEGRADED | 🟡 Yellow | 80, 60, 0 | 1 check failed |
-| INTERNET_DOWN | 🟠 Orange | 100, 20, 0 | 2+ consecutive failures |
+6. Connect to `InternetMonitor-Setup` WiFi network (password: your web password)
+7. Go to `http://192.168.4.1`, login, and select your WiFi network
+8. Device reboots and connects — check Serial Monitor (115200 baud) for IP address
+9. Open IP in browser and login with your password
 
 ## How It Works
 
@@ -100,15 +57,46 @@ stateDiagram-v2
 4. Updates LED color based on result
 5. Tracks statistics (resets on reboot)
 
-## LED Effects
+## LED Display
 
-### Categories
+### Status Colors
 
-| Category | Effects |
-|----------|---------|
-| **Basic** | Off, Solid, Ripple, Rainbow, Pulse, Rain |
-| **Visual** | Matrix, Fire, Plasma, Ocean, Nebula, Noise |
-| **Animated** | Life, Pong, Metaballs, Interference, Pool, Rings, Ball |
+| Color | Meaning |
+|-------|---------|
+| 🟢 Green | Internet OK |
+| 🟡 Yellow | Degraded (1 check failed) |
+| 🔴 Red | Internet down (2+ consecutive failures) |
+| 🔴 Red | WiFi disconnected |
+| 🔵 Blue | Booting / Connecting to WiFi |
+| 🟣 Purple | WiFi setup portal active |
+| 🟪 Magenta | OTA update in progress |
+
+### Effects
+
+18 effects, each with optimized default brightness and speed:
+
+| Effect | Brightness | Speed | Description |
+|--------|------------|-------|-------------|
+| Off | 5 | - | LEDs off |
+| Solid | 5 | - | Static color |
+| Ripple | 10 | 72 | Ripples from center |
+| Rainbow | 5 | 72 | Rotating rainbow |
+| Rain | 10 | 36 | Falling raindrops |
+| Matrix | 5 | 50 | Falling code streams |
+| Fire | 5 | 51 | Flickering flames |
+| Plasma | 5 | 100 | Flowing plasma |
+| Ocean | 5 | 58 | Ocean waves |
+| Nebula | 5 | 58 | Space nebula |
+| Life | 5 | 25 | Conway's Game of Life with tribes |
+| Pong | 5 | 36 | Auto-playing Pong |
+| Metaballs | 5 | 100 | Organic blobs |
+| Interference | 5 | 50 | Wave interference |
+| Noise | 5 | 84 | Perlin noise |
+| Pool | 5 | 80 | Water ripples |
+| Rings | 10 | 57 | Expanding rings |
+| Ball | 25 | 57 | Bouncing ball |
+
+When you switch effects, brightness and speed automatically adjust to the effect's defaults.
 
 ### Effect × Connectivity State
 
@@ -117,7 +105,6 @@ stateDiagram-v2
 | **Solid** | <img src="images/led_effects_gifs/solid_online.gif" width="150"> | <img src="images/led_effects_gifs/solid_degraded.gif" width="150"> | <img src="images/led_effects_gifs/solid_offline.gif" width="150"> |
 | **Ripple** | <img src="images/led_effects_gifs/ripple_online.gif" width="150"> | <img src="images/led_effects_gifs/ripple_degraded.gif" width="150"> | <img src="images/led_effects_gifs/ripple_offline.gif" width="150"> |
 | **Rainbow** | <img src="images/led_effects_gifs/rainbow_online.gif" width="150"> | <img src="images/led_effects_gifs/rainbow_degraded.gif" width="150"> | <img src="images/led_effects_gifs/rainbow_offline.gif" width="150"> |
-| **Pulse** | <img src="images/led_effects_gifs/pulse_online.gif" width="150"> | <img src="images/led_effects_gifs/pulse_degraded.gif" width="150"> | <img src="images/led_effects_gifs/pulse_offline.gif" width="150"> |
 | **Rain** | <img src="images/led_effects_gifs/rain_online.gif" width="150"> | <img src="images/led_effects_gifs/rain_degraded.gif" width="150"> | <img src="images/led_effects_gifs/rain_offline.gif" width="150"> |
 
 ### System States
@@ -125,6 +112,26 @@ stateDiagram-v2
 | Effect | Booting | Connecting | WiFi Lost | OTA |
 |:-------|:------:|:--------:|:-------:|:---:|
 | **Pulse** &nbsp;&nbsp;&nbsp;&nbsp;&thinsp; | <img src="images/led_effects_gifs/pulse_booting.gif" width="150"> | <img src="images/led_effects_gifs/pulse_connecting.gif" width="150"> | <img src="images/led_effects_gifs/pulse_wifi_lost.gif" width="150"> | <img src="images/led_effects_gifs/ota_progress.gif" width="150"> |
+
+## WiFi Setup
+
+Configure WiFi via the captive portal or hardcode credentials in `config.h` — your choice.
+
+![WiFi Setup Portal](images/webgui-3.jpg)
+
+**First-time setup:**
+1. Device starts in setup mode (purple LEDs)
+2. Connect to `InternetMonitor-Setup` WiFi (password: your web password from `config.h`)
+3. Go to `http://192.168.4.1` and login
+4. Select your WiFi network and enter password
+5. Device reboots and connects
+
+**Changing WiFi later:**
+1. Open the web dashboard
+2. Use Factory Reset in Danger Zone section
+3. Device reboots into setup mode
+
+Settings (brightness, effect, speed, rotation) are saved to flash and persist across reboots and WiFi changes.
 
 ## Web Interface
 
@@ -138,68 +145,46 @@ Access via device IP address. Sessions persist until device reboots or you logou
 
 ![Dashboard](images/webgui-2.jpg)
 
-Controls:
+**Dashboard sections:**
 
-- **Effect buttons** — select animation (organized by category)
-- **Brightness slider** — 5 to 50
-- **Speed slider** — 10% to 100%
-- **Rotation buttons** — 0°, 90°, 180°, 270°
-- **Factory Reset** — clears all settings, reboots to setup mode
+- **Effects** — effect buttons with brightness, speed, and rotation controls
+- **Statistics** — uptime, checks, success rate, downtime
+- **Network** — SSID, IP, signal strength, MAC, channel
+- **System** — architecture, memory, flash, temperature, OTA status, firmware version (collapsible)
+- **Diagnostics** — LED FPS, frame times, stack usage (collapsible)
+- **Danger Zone** — factory reset button
 
-Statistics shown:
-- Uptime, total checks, success rate
-- Failed checks, total downtime, last outage duration
-- WiFi SSID, IP address, signal strength (RSSI)
-- LED FPS, frame time, stack usage (Performance section)
-
-## Project Structure
+## Configuration
 
 ```
 InternetMonitor/
-├── InternetMonitor.ino   # Main logic, setup, loop, web handlers
-├── config.h              # WiFi, passwords, timing, colors, constants
+├── InternetMonitor.ino   # Main logic, setup, loop
+├── config.h              # Password, timing settings
 ├── effects.h             # Effect dispatcher
-├── effects/
-│   ├── effects_base.h    # Shared utilities (fast math, pixel API)
-│   ├── effect_solid.h    # Basic effects
-│   ├── effect_ripple.h
-│   ├── effect_fire.h     # Visual effects
-│   ├── effect_plasma.h
-│   ├── effect_life.h     # Animated effects
-│   ├── effect_pong.h
-│   └── ... (19 total)
+├── effects/              # Individual effect files (18 effects)
 ├── web/
 │   ├── ui_login.h        # Login page HTML
-│   ├── ui_dashboard.h    # Dashboard CSS/JS
-│   └── ui_portal.h       # Config portal CSS/JS
-├── CHANGELOG.md          # Version history
+│   ├── ui_dashboard.h    # Dashboard HTML/CSS/JS
+│   └── ui_portal.h       # WiFi setup portal HTML/CSS/JS
+├── CHANGELOG.md
 └── README.md
 ```
-
-## Configuration
 
 Edit `config.h` to customize:
 
 ```cpp
-// WiFi
-const char* WIFI_SSID     = "YourWiFiName";
-const char* WIFI_PASSWORD = "YourPassword";
-
-// Web UI
+// Password for web dashboard, WiFi setup portal, and OTA updates
 const char* WEB_PASSWORD  = "admin";
 
 // Timing
 #define CHECK_INTERVAL       10000  // Check every 10 seconds
 #define WDT_TIMEOUT          60     // Watchdog timeout (seconds)
 #define FAILURES_BEFORE_RED  2      // Consecutive failures before "down"
-
-// State colors (customize LED colors for each state)
-#define COLOR_OK_R            0
-#define COLOR_OK_G            80
-#define COLOR_OK_B            0
 ```
 
-Default LED settings: Rain effect, brightness 21, speed 80%, rotation 180°
+WiFi credentials are configured via the setup portal and stored in flash.
+
+Per-effect brightness and speed defaults are defined in `effectDefaults[]` array in the main `.ino` file.
 
 ## API Endpoints
 
@@ -211,7 +196,7 @@ All endpoints except `/login` require a valid session cookie.
 | `POST /login` | Authenticate (body: `password=xxx`) |
 | `GET /logout` | End session |
 | `GET /stats` | JSON stats |
-| `GET /effect?e={0-18}` | Set effect |
+| `GET /effect?e={0-17}` | Set effect (returns JSON with new brightness/speed) |
 | `GET /brightness?b={5-50}` | Set brightness |
 | `GET /speed?s={10-100}` | Set speed |
 | `GET /rotation?r={0-3}` | Set rotation |
@@ -221,8 +206,13 @@ All endpoints except `/login` require a valid session cookie.
 
 After initial USB upload, future updates can be done over WiFi:
 
-1. In Arduino IDE: Tools → Port → Select `internet-monitor` (network)
-2. Upload as normal
+1. In Arduino IDE: Tools → Port → Select `internet-monitor at <ip>` (network port)
+2. Enter password when prompted (same as web dashboard password, default: `admin`)
+3. Upload as normal
+
+The LED matrix shows purple progress bar during OTA upload.
+
+> **Note:** If upload fails, try moving closer to router or upload via USB.
 
 ## Troubleshooting
 
@@ -234,8 +224,7 @@ After initial USB upload, future updates can be done over WiFi:
 
 **Crashes when internet down:** Watchdog should auto-recover within 60 seconds
 
-**Effect looks wrong after switching:** Effects now reset their state on switch (v0.6.0+)
+**Captive portal not appearing:** Try opening http://192.168.4.1 manually
 
-## License
+**OTA upload fails:** Check firewall, try USB upload instead
 
-MIT
