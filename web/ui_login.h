@@ -24,6 +24,7 @@ const char LOGIN_HTML[] PROGMEM = R"rawliteral(
     label{display:block;font-size:.7rem;color:#707088;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;text-align:left}
     input[type=password]{width:100%;padding:12px;border:1px solid #303048;border-radius:8px;background:#252540;color:#c8c8d8;font-size:1rem;margin-bottom:16px}
     input[type=password]:focus{outline:none;border-color:#4338ca}
+    input:-webkit-autofill{-webkit-box-shadow:0 0 0 1000px #252540 inset!important;-webkit-text-fill-color:#c8c8d8!important}
     button{width:100%;padding:12px;border:none;border-radius:8px;background:#4338ca;color:#d8d8e8;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .15s}
     button:hover{background:#5145d6}
     .error{color:#ef4444;font-size:.75rem;margin-bottom:12px;display:none}

@@ -65,13 +65,6 @@ enum APIError {
   API_ERR_SERVER_ERROR = 500
 };
 
-// Effect names for display
-extern const char* effectNames[];
-
-// Per-effect default brightness and speed
-// Format: {brightness, speed}
-extern const uint8_t effectDefaults[][2];
-
 // ===========================================
 // SYSTEM STATISTICS
 // ===========================================

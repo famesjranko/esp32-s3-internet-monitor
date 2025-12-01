@@ -23,6 +23,7 @@ An ESP32-S3 internet connectivity monitor with an 8x8 RGB LED matrix. Checks you
 - [Configuration](#configuration)
 - [API Reference](#api-reference)
 - [OTA Updates](#ota-updates)
+- [Factory Reset](#factory-reset)
 - [Troubleshooting](#troubleshooting)
 
 ## Features
@@ -34,6 +35,7 @@ An ESP32-S3 internet connectivity monitor with an 8x8 RGB LED matrix. Checks you
 - **Home Assistant auto-discovery** — entities appear automatically
 - **Secure web dashboard** — SHA-256 password hashing, rate-limited login
 - **Config portal** — captive portal for WiFi setup (no hardcoded credentials needed)
+- **Hardware factory reset** — hold BOOT button for 5 seconds to reset all settings
 - **OTA updates** — update firmware over WiFi
 - **Persistent settings** — brightness, effect, speed, rotation survive reboot
 - **Watchdog timer** — auto-reboots if device hangs
@@ -230,6 +232,31 @@ After initial USB upload, update over WiFi:
 2. Password: `internet-monitor`
 3. Upload
 
+## Factory Reset
+
+Two ways to reset the device to factory defaults:
+
+### Hardware Reset (BOOT Button)
+
+While the device is running normally:
+
+1. **Press and hold** the BOOT button on the back of the ESP32-S3-Matrix
+2. LEDs show red rings filling inward from the edges (progress indicator)
+3. Keep holding for **5 seconds**
+4. LEDs turn **green** briefly, then device reboots into config portal
+
+> **Tip:** If you release BOOT before 5 seconds, the reset is cancelled and normal operation resumes.
+
+### Web Interface Reset
+
+From the dashboard: **Danger Zone → Factory Reset**
+
+Both methods clear:
+- WiFi credentials
+- Dashboard password (reset to: `admin`)
+- Brightness, effect, speed, rotation
+- MQTT configuration
+
 ## Troubleshooting
 
 | Problem | Solution |
@@ -237,6 +264,7 @@ After initial USB upload, update over WiFi:
 | No serial output | Enable "USB CDC On Boot" in Arduino IDE |
 | Wrong LED colors | Verify `NEO_RGB` in code (not `NEO_GRB`) |
 | Won't connect | ESP32 only supports 2.4GHz WiFi |
+| Forgot password | Hold BOOT button for 5 seconds while device is running |
 | Device crashes | Watchdog auto-recovers within 60 seconds |
 
 ## Project Structure
@@ -251,7 +279,7 @@ InternetMonitor/
 ├── mqtt/                  # MQTT client and HA discovery
 ├── network/               # Connectivity checking
 ├── storage/               # NVS persistence
-├── system/                # Tasks, OTA, watchdog
+├── system/                # Tasks, OTA, watchdog, factory reset
 ├── web/                   # HTTP handlers and UI
 ├── CLAUDE.md              # Developer documentation
 └── CHANGELOG.md           # Version history

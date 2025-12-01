@@ -108,11 +108,8 @@ inline void handlePortalRoot() {
   Serial.println("Portal request received: /");
   lastPortalActivity = millis();
 
-  // Require auth for portal
-  if (!checkAuth()) {
-    server.send(200, "text/html", LOGIN_HTML);
-    return;
-  }
+  // No auth required for config portal - it's on a local open AP network
+  // and user may have just factory reset (no password knowledge)
 
   // Chunked response for memory efficiency
   server.setContentLength(CONTENT_LENGTH_UNKNOWN);
@@ -161,7 +158,7 @@ inline void handlePortalRoot() {
 }
 
 inline void handleScan() {
-  if (!checkAuth()) { sendUnauthorized(); return; }
+  // No auth for config portal - local open AP
   lastPortalActivity = millis();
 
   int n = WiFi.scanComplete();
@@ -197,7 +194,7 @@ inline void handleScan() {
 }
 
 inline void handleConnect() {
-  if (!checkAuth()) { sendUnauthorized(); return; }
+  // No auth for config portal - local open AP
   lastPortalActivity = millis();
 
   String ssid = server.arg("ssid");

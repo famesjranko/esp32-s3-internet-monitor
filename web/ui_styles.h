@@ -129,6 +129,7 @@ const char CSS_FORMS[] PROGMEM = R"rawliteral(
 input[type=text],input[type=password],input[type=number],input[type=email]{padding:8px 10px;background:#252540;border:1px solid #303048;border-radius:6px;color:#b8b8c8;font-size:.8rem;width:100%}
 input[type=text]:focus,input[type=password]:focus,input[type=number]:focus{outline:none;border-color:#4338ca}
 input[type=text]::placeholder,input[type=password]::placeholder{color:#505068}
+input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 1000px #252540 inset!important;-webkit-text-fill-color:#b8b8c8!important;caret-color:#b8b8c8}
 input[type=range]{width:100%;height:4px;border-radius:2px;background:#303048;-webkit-appearance:none;cursor:pointer}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#6366f1}
 .input-row{display:flex;gap:8px;align-items:center}

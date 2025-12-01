@@ -94,40 +94,6 @@ volatile bool ledTaskRunning = true;
 volatile bool ledTaskPaused = false;
 
 // ===========================================
-// STATIC DATA TABLES
-// ===========================================
-
-// Effect names for display
-const char* effectNames[] = {
-  "Off", "Solid", "Ripple", "Rainbow", "Rain",
-  "Matrix", "Fire", "Plasma", "Ocean", "Nebula", "Life",
-  "Pong", "Metaballs", "Interference", "Noise", "Pool", "Rings", "Ball"
-};
-
-// Per-effect default brightness and speed
-// Format: {brightness, speed}
-const uint8_t effectDefaults[][2] = {
-  {5, 50},    // 0: Off (doesn't matter)
-  {5, 50},    // 1: Solid (speed doesn't matter)
-  {10, 72},   // 2: Ripple
-  {5, 72},    // 3: Rainbow
-  {10, 36},   // 4: Rain
-  {5, 50},    // 5: Matrix
-  {5, 51},    // 6: Fire
-  {5, 100},   // 7: Plasma
-  {5, 58},    // 8: Ocean
-  {5, 58},    // 9: Nebula
-  {5, 25},    // 10: Life
-  {5, 36},    // 11: Pong
-  {5, 100},   // 12: Metaballs
-  {5, 50},    // 13: Interference
-  {5, 84},    // 14: Noise
-  {5, 80},    // 15: Pool
-  {10, 57},   // 16: Rings
-  {25, 57},   // 17: Ball
-};
-
-// ===========================================
 // GLOBAL STATE STRUCTS
 // ===========================================
 
@@ -191,6 +157,9 @@ unsigned long lastSettingChangeTime = 0;
 // MQTT module (runs in its own task)
 #include "mqtt/mqtt_manager.h"
 
+// Factory reset (BOOT button)
+#include "system/factory_reset.h"
+
 // ===========================================
 // SETUP
 // ===========================================
@@ -210,6 +179,9 @@ void setup() {
 
   // Init LEDs
   pixels.begin();
+  
+  // Configure BOOT button for factory reset (checked in main loop)
+  initFactoryResetButton();
   
   // Load settings from NVS (brightness, effect, etc.)
   loadSettingsFromNVS();
@@ -307,6 +279,9 @@ void setup() {
 
 void loop() {
   esp_task_wdt_reset();
+  
+  // Check for hardware factory reset (BOOT button held for 5 seconds)
+  checkBootButtonFactoryReset();
 
   // Handle config portal mode
   if (configPortalActive) {

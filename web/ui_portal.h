@@ -28,6 +28,7 @@ h1{font-size:1.4rem;font-weight:600;margin-bottom:4px;color:#c8c8d8;text-align:c
 .no-networks{text-align:center;padding:20px;color:#707088}
 input[type=password]{width:100%;padding:12px;border:1px solid #303048;border-radius:8px;background:#252540;color:#c8c8d8;font-size:1rem;margin:8px 0}
 input:focus{outline:none;border-color:#6366f1}
+input:-webkit-autofill{-webkit-box-shadow:0 0 0 1000px #252540 inset!important;-webkit-text-fill-color:#c8c8d8!important}
 .btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .15s;margin-top:8px}
 .btn.scan{background:#303048;color:#808098}
 .btn.scan:hover{background:#404060}

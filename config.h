@@ -11,7 +11,7 @@ const char* WIFI_PASSWORD = "";
 // WEB UI CONFIGURATION
 // ===========================================
 const char* WEB_PASSWORD  = "";
-const char* FW_VERSION    = "0.7.0";
+const char* FW_VERSION    = "0.7.1";
 
 // ===========================================
 // HARDWARE CONFIGURATION
@@ -20,6 +20,10 @@ const char* FW_VERSION    = "0.7.0";
 #define NUM_LEDS          64
 #define MATRIX_SIZE       8
 #define LED_BRIGHTNESS    40    // Max 50! Higher can damage board
+#define BOOT_BUTTON_PIN   0     // GPIO0 - BOOT button on ESP32-S3-Matrix
+
+// Hardware factory reset: Hold BOOT button during power-on
+#define FACTORY_RESET_HOLD_TIME  5000  // Hold for 5 seconds to trigger reset
 
 // Display rotation values (0-3)
 #define ROTATION_0        0     // No rotation
