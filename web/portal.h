@@ -49,11 +49,11 @@ inline String buildNetworkListHTML(int networkCount) {
     return "<div class='no-networks'>No networks found</div>";
   }
 
-  // Pre-allocate to reduce fragmentation (~150 bytes per network)
+  // Pre-allocate to reduce fragmentation (~200 bytes per network)
   String html;
-  html.reserve(networkCount * 150);
+  html.reserve(networkCount * 200);
 
-  char entry[200];  // Buffer for each network entry
+  char entry[400];  // Buffer for each network entry (SSIDs can be 32 chars, escaped up to 64, x2 = 128 + HTML ~150)
 
   for (int i = 0; i < networkCount; i++) {
     String ssid = WiFi.SSID(i);
@@ -74,13 +74,24 @@ inline String buildNetworkListHTML(int networkCount) {
     escaped.replace("\"", "&quot;");
     escaped.replace("<", "&lt;");
     escaped.replace(">", "&gt;");
+    
+    // Truncate extremely long SSIDs to prevent buffer issues
+    if (escaped.length() > 48) {
+      escaped = escaped.substring(0, 45) + "...";
+    }
 
     // Build entry with snprintf
-    snprintf(entry, sizeof(entry),
-      "<div class='network' onclick=\"sel('%s',%d)\"><span class='ssid'>%s</span>"
+    int written = snprintf(entry, sizeof(entry),
+      "<div class='network' onclick=\"sel('%s',%d,event)\"><span class='ssid'>%s</span>"
       "<span class='meta'><span class='sig'>%s</span>%s</span></div>",
       escaped.c_str(), isOpen ? 1 : 0, escaped.c_str(), signal,
       isOpen ? "" : "<span class='lock'>*</span>");
+    
+    // Safety check - skip if truncated
+    if (written >= (int)sizeof(entry) - 1) {
+      Serial.printf("[Portal] Warning: Network entry truncated for SSID: %s\n", ssid.c_str());
+      continue;
+    }
 
     html += entry;
     esp_task_wdt_reset();
@@ -123,7 +134,7 @@ inline void handlePortalRoot() {
   server.sendContent("<div id='networks'>");
   server.sendContent(cachedNetworkListHTML);
   server.sendContent("</div>");
-  server.sendContent("<button class='btn scan' onclick='scan()'>Scan Again</button>");
+  server.sendContent("<button class='btn scan' onclick='scan(event)'>Scan Again</button>");
   server.sendContent("</div>");
 
   // Password input (hidden initially)
@@ -381,14 +392,13 @@ inline void enterConfigMode() {
   // Now switch to AP mode for portal
   WiFi.mode(WIFI_AP);
   delay(200);
-  // Use fixed password for AP mode (only used during initial setup)
-  WiFi.softAP(CONFIG_AP_SSID, "admin", CONFIG_AP_CHANNEL);
+  // Open network for easy setup (no password required)
+  WiFi.softAP(CONFIG_AP_SSID, NULL, CONFIG_AP_CHANNEL);
   delay(500);  // Give AP time to start
 
   Serial.print("AP SSID: ");
   Serial.println(CONFIG_AP_SSID);
-  Serial.print("AP Password: admin");
-  Serial.println();
+  Serial.println("AP Security: Open (no password)");
   Serial.print("AP IP: ");
   Serial.println(WiFi.softAPIP());
 

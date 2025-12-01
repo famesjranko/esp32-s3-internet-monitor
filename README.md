@@ -61,7 +61,7 @@ An ESP32-S3 internet connectivity monitor with an 8x8 RGB LED matrix. Checks you
 
 5. **First-Run Setup:**
    - Device starts in AP mode (purple LED)
-   - Connect to WiFi network `InternetMonitor-Setup` (password: `admin`)
+   - Connect to WiFi network `InternetMonitor-Setup` (open network, no password)
    - Browser opens automatically (or go to `192.168.4.1`)
    - Select your WiFi network and enter password
    - Optionally set a dashboard password (default: `admin`)
@@ -80,7 +80,7 @@ When no WiFi is configured, device creates an access point for setup.
 <img src="images/webgui-3.jpg" width="300">
 
 - **AP Name:** `InternetMonitor-Setup`
-- **AP Password:** `admin`
+- **AP Security:** Open (no password)
 - **Portal IP:** `192.168.4.1`
 
 The portal scans for networks and lets you select one to join. After saving credentials, device reboots and connects.

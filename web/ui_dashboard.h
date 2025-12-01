@@ -87,11 +87,11 @@ const char DASHBOARD_CSS[] PROGMEM = R"rawliteral(
 
 // Dashboard JavaScript (uses cookies for auth)
 const char DASHBOARD_JS[] PROGMEM = R"rawliteral(
-    function E(e){fetch('/effect?e='+e,{credentials:'same-origin'}).then(r=>r.json()).then(d=>{document.getElementById('bv').textContent=d.brightness+'/50';document.getElementById('sv').textContent=d.speed+'%';document.querySelector('input[oninput*="B("]').value=d.brightness;document.querySelector('input[oninput*="S("]').value=d.speed}).catch(()=>{});document.querySelectorAll('.grid .btn').forEach(b=>{const n=parseInt(b.getAttribute('onclick').match(/\d+/)[0]);b.classList.toggle('active',n===e)})}
-    function B(v){document.getElementById('bv').textContent=v+'/50';fetch('/brightness?b='+v,{credentials:'same-origin'})}
-    function S(v){document.getElementById('sv').textContent=v+'%';fetch('/speed?s='+v,{credentials:'same-origin'})}
-    function R(r){fetch('/rotation?r='+r,{credentials:'same-origin'});document.querySelectorAll('.rot-btn').forEach((b,i)=>b.classList.toggle('active',i===r))}
-    function T(id){const t=document.getElementById(id+'T'),b=document.getElementById(id+'B');t.classList.toggle('collapsed');b.classList.toggle('collapsed');localStorage.setItem(id,t.classList.contains('collapsed')?'1':'0')}
+    function E(e){fetch('/effect?e='+e,{credentials:'same-origin'}).then(r=>r.json()).then(d=>{document.getElementById('bv').textContent=d.brightness+'/50';document.getElementById('sv').textContent=d.speed+'%';document.querySelector('input[oninput*="B("]').value=d.brightness;document.querySelector('input[oninput*="S("]').value=d.speed}).catch(err=>console.warn('Effect error:',err));document.querySelectorAll('.grid .btn').forEach(b=>{const n=parseInt(b.getAttribute('onclick').match(/\d+/)[0]);b.classList.toggle('active',n===e)})}
+    function B(v){const el=document.getElementById('bv');el.textContent=v+'/50';fetch('/brightness?b='+v,{credentials:'same-origin'}).catch(()=>{el.textContent='Error';setTimeout(upd,500)})}
+    function S(v){const el=document.getElementById('sv');el.textContent=v+'%';fetch('/speed?s='+v,{credentials:'same-origin'}).catch(()=>{el.textContent='Error';setTimeout(upd,500)})}
+    function R(r){fetch('/rotation?r='+r,{credentials:'same-origin'}).catch(err=>console.warn('Rotation error:',err));document.querySelectorAll('.rot-btn').forEach((b,i)=>b.classList.toggle('active',i===r))}
+    function T(id){const t=document.getElementById(id+'T'),b=document.getElementById(id+'B');if(t&&b){t.classList.toggle('collapsed');b.classList.toggle('collapsed');localStorage.setItem(id,t.classList.contains('collapsed')?'1':'0')}}
     function logout(){fetch('/logout',{credentials:'same-origin'}).then(()=>window.location='/');}
     function factoryReset(){
       showConfirm('This will clear ALL settings:\n\n• WiFi network & password\n• Dashboard password (reset to: admin)\n• Brightness, effect, speed, rotation\n• MQTT configuration\n\nDevice will reboot into setup mode.',{
@@ -123,17 +123,17 @@ const char DASHBOARD_JS[] PROGMEM = R"rawliteral(
       document.getElementById('down').textContent=fmt(d.downtime);
       const rssi=document.getElementById('rssi');rssi.textContent=d.rssi+' dBm';rssi.className='stat-val '+(d.rssi>-60?'good':'');
       document.getElementById('heap').textContent=Math.floor(d.heap/1024)+' KB';
-      if(document.getElementById('minheap'))document.getElementById('minheap').textContent=Math.floor(d.minHeap/1024)+' KB';
+      const minheap=document.getElementById('minheap');if(minheap&&d.minHeap!=null)minheap.textContent=Math.floor(d.minHeap/1024)+' KB';
       document.getElementById('temp').textContent=d.temp+'°C';
       const c=colors[d.state]||'#3b82f6';
       document.getElementById('dot').style.background=c;document.getElementById('dot').style.boxShadow='0 0 8px '+c;
       document.getElementById('stxt').style.color=c;document.getElementById('stxt').textContent=d.stateText;
-      // Performance stats
-      const fps=document.getElementById('fps');if(fps){fps.textContent=d.ledFps.toFixed(1);fps.className='stat-val '+(d.ledFps>55?'good':(d.ledFps>30?'':'bad'));}
-      if(document.getElementById('frameus'))document.getElementById('frameus').textContent=d.ledFrameUs+' µs';
-      const maxf=document.getElementById('maxframeus');if(maxf){maxf.textContent=d.ledMaxFrameUs+' µs';maxf.className='stat-val '+(d.ledMaxFrameUs<10000?'good':(d.ledMaxFrameUs<16000?'':'bad'));}
-      if(document.getElementById('ledstack'))document.getElementById('ledstack').textContent=d.ledStack+' bytes';
-      if(document.getElementById('netstack'))document.getElementById('netstack').textContent=d.netStack+' bytes';
+      // Performance stats (with null checks)
+      const fps=document.getElementById('fps');if(fps&&d.ledFps!=null){fps.textContent=d.ledFps.toFixed(1);fps.className='stat-val '+(d.ledFps>55?'good':(d.ledFps>30?'':'bad'));}
+      const frameus=document.getElementById('frameus');if(frameus&&d.ledFrameUs!=null)frameus.textContent=d.ledFrameUs+' µs';
+      const maxf=document.getElementById('maxframeus');if(maxf&&d.ledMaxFrameUs!=null){maxf.textContent=d.ledMaxFrameUs+' µs';maxf.className='stat-val '+(d.ledMaxFrameUs<10000?'good':(d.ledMaxFrameUs<16000?'':'bad'));}
+      const ledstack=document.getElementById('ledstack');if(ledstack&&d.ledStack!=null)ledstack.textContent=d.ledStack+' bytes';
+      const netstack=document.getElementById('netstack');if(netstack&&d.netStack!=null)netstack.textContent=d.netStack+' bytes';
     }).catch(()=>{})}
     // Restore collapsed state from localStorage (effects defaults open, sys/diag default collapsed)
     ['effects'].forEach(id=>{if(localStorage.getItem(id)==='1'){const t=document.getElementById(id+'T'),b=document.getElementById(id+'B');if(t&&b){t.classList.add('collapsed');b.classList.add('collapsed')}}});
@@ -149,9 +149,8 @@ const char DASHBOARD_JS[] PROGMEM = R"rawliteral(
       document.getElementById('mqttEnKnob').style.left=en?'22px':'2px';
       const d=new FormData();d.append('enabled',en?'1':'0');
       fetch('/mqtt/config',{method:'POST',body:d,credentials:'same-origin'}).then(r=>r.json()).then(r=>{
-        document.getElementById('mqttStatus').textContent=r.status;
-        document.getElementById('mqttStatus').style.color=r.connected?'#22c55e':(en?'#f59e0b':'#707088');
-      });
+        const s=document.getElementById('mqttStatus');if(s){s.textContent=r.status;s.style.color=r.connected?'#22c55e':(en?'#f59e0b':'#707088');}
+      }).catch(err=>console.warn('MQTT toggle error:',err));
     }
     function togHA(){
       const inp=document.getElementById('mqttHA');
@@ -166,28 +165,25 @@ const char DASHBOARD_JS[] PROGMEM = R"rawliteral(
       d.append('broker',document.getElementById('mqttBroker').value);
       d.append('port',document.getElementById('mqttPort').value);
       d.append('username',document.getElementById('mqttUser').value);
-      const p=document.getElementById('mqttPass').value;if(p)d.append('password',p);
+      d.append('password',document.getElementById('mqttPass').value);
       d.append('topic',document.getElementById('mqttTopic').value);
       d.append('interval',document.getElementById('mqttInt').value);
       d.append('ha_discovery',document.getElementById('mqttHA').value);
       fetch('/mqtt/config',{method:'POST',body:d,credentials:'same-origin'}).then(r=>r.json()).then(r=>{
-        document.getElementById('mqttStatus').textContent=r.status;
-        document.getElementById('mqttStatus').style.color=r.connected?'#22c55e':'#f59e0b';
+        const s=document.getElementById('mqttStatus');if(s){s.textContent=r.status;s.style.color=r.connected?'#22c55e':'#f59e0b';}
         if(r.success)showSuccess('MQTT settings saved!','Settings Saved');
         else showError('Error saving settings','Save Failed');
       }).catch(()=>showError('Error saving MQTT settings','Save Failed'));
     }
     function mqttTest(){
-      document.getElementById('mqttStatus').textContent='Testing...';
-      document.getElementById('mqttStatus').style.color='#f59e0b';
+      const s=document.getElementById('mqttStatus');
+      if(s){s.textContent='Testing...';s.style.color='#f59e0b';}
       fetch('/mqtt/test',{method:'POST',credentials:'same-origin'}).then(r=>r.json()).then(r=>{
-        document.getElementById('mqttStatus').textContent=r.success?'Connected':'Failed';
-        document.getElementById('mqttStatus').style.color=r.success?'#22c55e':'#ef4444';
+        if(s){s.textContent=r.success?'Connected':'Failed';s.style.color=r.success?'#22c55e':'#ef4444';}
         if(r.success)showSuccess(r.message,'Connection Test');
         else showError(r.message,'Connection Test');
       }).catch(()=>{
-        document.getElementById('mqttStatus').textContent='Error';
-        document.getElementById('mqttStatus').style.color='#ef4444';
+        if(s){s.textContent='Error';s.style.color='#ef4444';}
         showError('Connection test failed','Test Failed');
       });
     }
@@ -198,8 +194,9 @@ const char DASHBOARD_JS[] PROGMEM = R"rawliteral(
       const inp=document.getElementById('mqttEn');
       if(inp&&((inp.value==='1')!==d.enabled)){
         inp.value=d.enabled?'1':'0';
-        document.getElementById('mqttEnBg').style.background=d.enabled?'#4338ca':'#303048';
-        document.getElementById('mqttEnKnob').style.left=d.enabled?'22px':'2px';
+        const bg=document.getElementById('mqttEnBg'),knob=document.getElementById('mqttEnKnob');
+        if(bg)bg.style.background=d.enabled?'#4338ca':'#303048';
+        if(knob)knob.style.left=d.enabled?'22px':'2px';
       }
     }).catch(()=>{});}
     setInterval(updMqtt,5000);

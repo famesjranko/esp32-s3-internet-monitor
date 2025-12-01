@@ -48,9 +48,10 @@ function showModal(opts){
       b.className='modal-btn'+(btn.class?' '+btn.class:'');
       b.textContent=btn.text;
       b.onclick=function(){
+        const cb=modalCallback;  // Save callback before hideModal nulls it
         hideModal();
         if(btn.action)btn.action();
-        if(modalCallback)modalCallback(btn.value);
+        if(cb)cb(btn.value);
       };
       footer.appendChild(b);
     });

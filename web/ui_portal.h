@@ -44,11 +44,11 @@ input:focus{outline:none;border-color:#6366f1}
 
 // Portal JavaScript
 const char PORTAL_JS[] PROGMEM = R"rawliteral(
-let ssid='',isOpen=0;
-function sel(s,o){
+let ssid='',isOpen=0,scanBtn=null;
+function sel(s,o,e){
   ssid=s;isOpen=o;
   document.querySelectorAll('.network').forEach(n=>n.classList.remove('selected'));
-  event.currentTarget.classList.add('selected');
+  if(e&&e.currentTarget)e.currentTarget.classList.add('selected');
   if(o){
     document.getElementById('pwcard').style.display='none';
     document.getElementById('status').textContent='Selected open network: '+s;
@@ -59,15 +59,19 @@ function sel(s,o){
     document.getElementById('pw').focus();
   }
 }
-function scan(){
-  const btn=event.currentTarget;
+function scan(e){
+  const btn=e?e.currentTarget:scanBtn;
+  if(!btn)return;
+  scanBtn=btn;
   btn.disabled=true;
   btn.innerHTML='<span class="spinner"></span>Scanning...';
   document.getElementById('status').textContent='';
   function poll(){
     fetch('/scan').then(r=>r.text()).then(h=>{
       document.getElementById('networks').innerHTML=h;
-      if(h.indexOf('Scanning')>-1){
+      // Check for scanning indicator (spinner class or no network entries)
+      const stillScanning=h.indexOf('spinner')>-1||h.indexOf('Scanning')>-1;
+      if(stillScanning){
         setTimeout(poll,500);
       }else{
         btn.disabled=false;
