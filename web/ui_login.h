@@ -1,6 +1,11 @@
 #ifndef UI_LOGIN_H
 #define UI_LOGIN_H
 
+/**
+ * @file ui_login.h
+ * @brief Login page HTML for web authentication
+ */
+
 const char LOGIN_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html>

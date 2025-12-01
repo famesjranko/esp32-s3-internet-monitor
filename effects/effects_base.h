@@ -97,18 +97,19 @@ inline float fastDist(float dx, float dy) {
 inline int getPixelIndex(int row, int col) {
   int r = row, c = col;
   switch (currentRotation) {
-    case 1:  // 90° CW
+    case ROTATION_90:   // 90° CW
       r = col;
       c = 7 - row;
       break;
-    case 2:  // 180°
+    case ROTATION_180:  // 180°
       r = 7 - row;
       c = 7 - col;
       break;
-    case 3:  // 270° CW
+    case ROTATION_270:  // 270° CW
       r = 7 - col;
       c = row;
       break;
+    // ROTATION_0 (default): no transformation needed
   }
   return r * MATRIX_SIZE + c;
 }

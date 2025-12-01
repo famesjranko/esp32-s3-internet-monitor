@@ -1,6 +1,14 @@
 #ifndef UI_DASHBOARD_H
 #define UI_DASHBOARD_H
 
+/**
+ * @file ui_dashboard.h
+ * @brief Main dashboard HTML/CSS/JS for web interface
+ * 
+ * Contains the primary dashboard UI including effect controls,
+ * brightness/speed sliders, rotation buttons, and status display.
+ */
+
 // Dashboard CSS
 const char DASHBOARD_CSS[] PROGMEM = R"rawliteral(
     *{box-sizing:border-box;margin:0;padding:0}
@@ -72,6 +80,9 @@ const char DASHBOARD_CSS[] PROGMEM = R"rawliteral(
       .btn{font-size:1rem}
       .stat{font-size:1rem}
     }
+    .tog{position:relative;display:inline-block;width:40px;height:20px;cursor:pointer}
+    .tog-bg{position:absolute;top:0;left:0;right:0;bottom:0;border-radius:20px;transition:background .2s}
+    .tog-knob{position:absolute;height:16px;width:16px;bottom:2px;background:#fff;border-radius:50%;transition:left .2s}
 )rawliteral";
 
 // Dashboard JavaScript (uses cookies for auth)
@@ -82,7 +93,25 @@ const char DASHBOARD_JS[] PROGMEM = R"rawliteral(
     function R(r){fetch('/rotation?r='+r,{credentials:'same-origin'});document.querySelectorAll('.rot-btn').forEach((b,i)=>b.classList.toggle('active',i===r))}
     function T(id){const t=document.getElementById(id+'T'),b=document.getElementById(id+'B');t.classList.toggle('collapsed');b.classList.toggle('collapsed');localStorage.setItem(id,t.classList.contains('collapsed')?'1':'0')}
     function logout(){fetch('/logout',{credentials:'same-origin'}).then(()=>window.location='/');}
-    function factoryReset(){if(confirm('FACTORY RESET\n\nThis will clear ALL settings:\n• WiFi network & password\n• Dashboard password (reset to: admin)\n• Brightness, effect, speed, rotation\n\nDevice will reboot into setup mode.\n\nContinue?')){fetch('/factory-reset',{credentials:'same-origin'}).then(r=>r.json()).then(d=>{alert('All settings cleared!\n\nTo reconfigure:\n1. Connect to WiFi: '+d.ssid+'\n2. Go to: http://192.168.4.1\n3. Login with password: admin\n\nRebooting...')}).catch(()=>alert('Rebooting...'))}}
+    function factoryReset(){
+      showConfirm('This will clear ALL settings:\n\n• WiFi network & password\n• Dashboard password (reset to: admin)\n• Brightness, effect, speed, rotation\n• MQTT configuration\n\nDevice will reboot into setup mode.',{
+        title:'Factory Reset',
+        confirmText:'Reset Everything',
+        cancelText:'Cancel',
+        danger:true,
+        callback:function(confirmed){
+          if(confirmed){
+            fetch('/factory-reset',{credentials:'same-origin'}).then(r=>r.json()).then(d=>{
+              showModal({
+                title:'Settings Cleared',
+                message:'To reconfigure:\n\n1. Connect to WiFi: '+d.ssid+'\n2. Go to: http://192.168.4.1\n3. Login with password: admin\n\nRebooting now...',
+                buttons:[{text:'OK',class:'primary'}]
+              });
+            }).catch(()=>showAlert('Rebooting...'));
+          }
+        }
+      });
+    }
     function fmt(ms){let s=Math.floor(ms/1000),m=Math.floor(s/60),h=Math.floor(m/60),d=Math.floor(h/24);let r='';if(d)r+=d+'d ';if(h%24)r+=(h%24)+'h ';if(m%60)r+=(m%60)+'m ';r+=(s%60)+'s';return r}
     const colors={4:'#22c55e',5:'#f59e0b',6:'#ef4444',3:'#ef4444',2:'#c026d3',0:'#3b82f6',1:'#3b82f6'};
     function upd(){fetch('/stats',{credentials:'same-origin'}).then(r=>{if(!r.ok){window.location='/';throw'';}return r.json()}).then(d=>{
@@ -108,8 +137,72 @@ const char DASHBOARD_JS[] PROGMEM = R"rawliteral(
     }).catch(()=>{})}
     // Restore collapsed state from localStorage (effects defaults open, sys/diag default collapsed)
     ['effects'].forEach(id=>{if(localStorage.getItem(id)==='1'){const t=document.getElementById(id+'T'),b=document.getElementById(id+'B');if(t&&b){t.classList.add('collapsed');b.classList.add('collapsed')}}});
-    ['sys','diag'].forEach(id=>{if(localStorage.getItem(id)==='0'){const t=document.getElementById(id+'T'),b=document.getElementById(id+'B');if(t&&b){t.classList.remove('collapsed');b.classList.remove('collapsed')}}});
+    ['sys','diag','mqtt'].forEach(id=>{if(localStorage.getItem(id)==='0'){const t=document.getElementById(id+'T'),b=document.getElementById(id+'B');if(t&&b){t.classList.remove('collapsed');b.classList.remove('collapsed')}}});
     setInterval(upd,2000);upd();
+    
+    // MQTT Functions
+    function mqttToggle(){
+      const inp=document.getElementById('mqttEn');
+      const en=inp.value!=='1';
+      inp.value=en?'1':'0';
+      document.getElementById('mqttEnBg').style.background=en?'#4338ca':'#303048';
+      document.getElementById('mqttEnKnob').style.left=en?'22px':'2px';
+      const d=new FormData();d.append('enabled',en?'1':'0');
+      fetch('/mqtt/config',{method:'POST',body:d,credentials:'same-origin'}).then(r=>r.json()).then(r=>{
+        document.getElementById('mqttStatus').textContent=r.status;
+        document.getElementById('mqttStatus').style.color=r.connected?'#22c55e':(en?'#f59e0b':'#707088');
+      });
+    }
+    function togHA(){
+      const inp=document.getElementById('mqttHA');
+      const en=inp.value!=='1';
+      inp.value=en?'1':'0';
+      document.getElementById('mqttHABg').style.background=en?'#4338ca':'#303048';
+      document.getElementById('mqttHAKnob').style.left=en?'22px':'2px';
+    }
+    function mqttSave(){
+      const d=new FormData();
+      d.append('enabled',document.getElementById('mqttEn').value);
+      d.append('broker',document.getElementById('mqttBroker').value);
+      d.append('port',document.getElementById('mqttPort').value);
+      d.append('username',document.getElementById('mqttUser').value);
+      const p=document.getElementById('mqttPass').value;if(p)d.append('password',p);
+      d.append('topic',document.getElementById('mqttTopic').value);
+      d.append('interval',document.getElementById('mqttInt').value);
+      d.append('ha_discovery',document.getElementById('mqttHA').value);
+      fetch('/mqtt/config',{method:'POST',body:d,credentials:'same-origin'}).then(r=>r.json()).then(r=>{
+        document.getElementById('mqttStatus').textContent=r.status;
+        document.getElementById('mqttStatus').style.color=r.connected?'#22c55e':'#f59e0b';
+        if(r.success)showSuccess('MQTT settings saved!','Settings Saved');
+        else showError('Error saving settings','Save Failed');
+      }).catch(()=>showError('Error saving MQTT settings','Save Failed'));
+    }
+    function mqttTest(){
+      document.getElementById('mqttStatus').textContent='Testing...';
+      document.getElementById('mqttStatus').style.color='#f59e0b';
+      fetch('/mqtt/test',{method:'POST',credentials:'same-origin'}).then(r=>r.json()).then(r=>{
+        document.getElementById('mqttStatus').textContent=r.success?'Connected':'Failed';
+        document.getElementById('mqttStatus').style.color=r.success?'#22c55e':'#ef4444';
+        if(r.success)showSuccess(r.message,'Connection Test');
+        else showError(r.message,'Connection Test');
+      }).catch(()=>{
+        document.getElementById('mqttStatus').textContent='Error';
+        document.getElementById('mqttStatus').style.color='#ef4444';
+        showError('Connection test failed','Test Failed');
+      });
+    }
+    // Update MQTT status periodically
+    function updMqtt(){fetch('/mqtt/status',{credentials:'same-origin'}).then(r=>r.json()).then(d=>{
+      const s=document.getElementById('mqttStatus');if(s){s.textContent=d.status;s.style.color=d.connected?'#22c55e':(d.enabled?'#f59e0b':'#707088');}
+      // Sync enabled toggle if it changed externally
+      const inp=document.getElementById('mqttEn');
+      if(inp&&((inp.value==='1')!==d.enabled)){
+        inp.value=d.enabled?'1':'0';
+        document.getElementById('mqttEnBg').style.background=d.enabled?'#4338ca':'#303048';
+        document.getElementById('mqttEnKnob').style.left=d.enabled?'22px':'2px';
+      }
+    }).catch(()=>{});}
+    setInterval(updMqtt,5000);
 )rawliteral";
 
 #endif

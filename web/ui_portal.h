@@ -1,6 +1,14 @@
 #ifndef UI_PORTAL_H
 #define UI_PORTAL_H
 
+/**
+ * @file ui_portal.h
+ * @brief Configuration portal HTML/CSS for WiFi setup
+ * 
+ * UI for the captive portal shown during initial device setup.
+ * Displays available WiFi networks and credential input form.
+ */
+
 // Portal CSS - matches existing dark theme
 const char PORTAL_CSS[] PROGMEM = R"rawliteral(
 *{box-sizing:border-box;margin:0;padding:0}

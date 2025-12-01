@@ -11,7 +11,7 @@ const char* WIFI_PASSWORD = "";
 // WEB UI CONFIGURATION
 // ===========================================
 const char* WEB_PASSWORD  = "";
-const char* FW_VERSION    = "0.6.0";
+const char* FW_VERSION    = "0.7.0";
 
 // ===========================================
 // HARDWARE CONFIGURATION
@@ -20,6 +20,12 @@ const char* FW_VERSION    = "0.6.0";
 #define NUM_LEDS          64
 #define MATRIX_SIZE       8
 #define LED_BRIGHTNESS    40    // Max 50! Higher can damage board
+
+// Display rotation values (0-3)
+#define ROTATION_0        0     // No rotation
+#define ROTATION_90       1     // 90° clockwise
+#define ROTATION_180      2     // 180°
+#define ROTATION_270      3     // 270° clockwise
 
 // ===========================================
 // TIMING CONFIGURATION (milliseconds)
@@ -50,12 +56,33 @@ const char* FW_VERSION    = "0.6.0";
 #define NVS_NAMESPACE         "imon"
 #define NVS_KEY_SSID          "ssid"
 #define NVS_KEY_PASSWORD      "password"
-#define NVS_KEY_WEB_PASSWORD  "webpass"
+#define NVS_KEY_WEB_PASSWORD  "webpass"      // Legacy plaintext (migration)
+#define NVS_KEY_WEB_PASS_HASH "webpass_hash" // SHA-256 hash
 #define NVS_KEY_CONFIGURED    "configured"
 #define NVS_KEY_BRIGHTNESS    "brightness"
 #define NVS_KEY_EFFECT        "effect"
 #define NVS_KEY_ROTATION      "rotation"
 #define NVS_KEY_SPEED         "speed"
+
+// MQTT NVS Keys
+#define NVS_KEY_MQTT_ENABLED  "mqtt_en"
+#define NVS_KEY_MQTT_BROKER   "mqtt_host"
+#define NVS_KEY_MQTT_PORT     "mqtt_port"
+#define NVS_KEY_MQTT_USER     "mqtt_user"
+#define NVS_KEY_MQTT_PASS     "mqtt_pass"
+#define NVS_KEY_MQTT_TOPIC    "mqtt_topic"
+#define NVS_KEY_MQTT_INTERVAL "mqtt_int"
+#define NVS_KEY_MQTT_HA_DISC  "mqtt_ha"
+
+// ===========================================
+// MQTT DEFAULTS
+// ===========================================
+#define MQTT_DEFAULT_PORT           1883
+#define MQTT_DEFAULT_INTERVAL_MS    30000    // 30 seconds
+#define MQTT_DEFAULT_TOPIC          "internet_monitor"
+#define MQTT_RECONNECT_INTERVAL_MS  10000    // 10 seconds between reconnect attempts
+#define MQTT_KEEPALIVE_SEC          60       // MQTT keepalive
+#define MQTT_BUFFER_SIZE            768      // Message buffer size (HA discovery needs ~600)
 
 // ===========================================
 // DEFAULT SETTINGS (used on first boot / factory reset)
