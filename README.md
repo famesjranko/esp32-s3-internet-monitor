@@ -158,7 +158,7 @@ Entities appear under `sensor.internet_monitor_*` after enabling discovery.
 |----------|---------|
 | **Basic** | Off, Solid, Ripple, Rainbow, Pulse, Rain |
 | **Visual** | Matrix, Fire, Plasma, Ocean, Nebula, Noise |
-| **Animated** | Life, Pong, Metaballs, Interference, Pool, Rings, Ball |
+| **Animated** | Life (game of life), Pong, Metaballs, Interference, Pool, Rings, Ball |
 
 Effects change color based on connectivity state (green → yellow → red).
 
