@@ -2,6 +2,41 @@
 
 All notable changes to the ESP32-S3 Internet Monitor project.
 
+## [0.7.0] - 2024-01-XX
+
+### Added
+- **MQTT Support**: Publish status to MQTT broker for Home Assistant integration
+  - Runs in dedicated FreeRTOS task (won't block network checks)
+  - Configurable broker, port, username, password, topic
+  - Home Assistant auto-discovery (8 entities)
+  - Last Will Testament for offline detection
+- **ArduinoJson**: Clean JSON serialization throughout codebase
+- **Response Helpers**: `sendError()`, `sendSuccess()` for consistent API responses
+- **Function Documentation**: Doxygen-style comments on all public APIs
+- **UI Modal System**: Custom styled dialogs replacing browser alerts
+- **Password Hashing**: Web password stored as SHA-256 hash (not plaintext)
+  - Automatic migration from plaintext on first boot
+  - Uses ESP32's built-in mbedtls library
+- **API Error Codes**: `APIError` enum for consistent error handling
+- **Rotation Constants**: `ROTATION_0`, `ROTATION_90`, `ROTATION_180`, `ROTATION_270`
+- **File Headers**: @file documentation on all source files
+
+### Changed
+- **Effects Switch**: Now uses enum names (`EFFECT_RAIN`) instead of magic numbers
+- **Token Generation**: Uses hardware RNG (`esp_random()`) for better security
+- **Thread Safety**: `haDiscoveryPublished` now volatile for cross-core access
+- **URL Check Loop**: Uses `min(2, numCheckUrls)` instead of hardcoded value
+- **OTA Password**: Now fixed to "internet-monitor" for simplicity
+- **AP Password**: Fixed to "admin" during config portal (was using web password)
+- **API Responses**: All endpoints now return JSON (previously some returned "OK" text)
+
+### Fixed
+- MQTT buffer size increased to 768 bytes for HA discovery payloads
+- Toggle switches in dashboard now update visually on click
+- `ui_dashboard_extended.h` include guard was incorrectly `UI_DASHBOARD_H`
+
+---
+
 ## [0.6.0] - 2024-01-XX
 
 ### Added

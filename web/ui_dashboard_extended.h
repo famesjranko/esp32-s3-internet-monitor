@@ -1,5 +1,13 @@
-#ifndef UI_DASHBOARD_H
-#define UI_DASHBOARD_H
+#ifndef UI_DASHBOARD_EXTENDED_H
+#define UI_DASHBOARD_EXTENDED_H
+
+/**
+ * @file ui_dashboard_extended.h
+ * @brief Extended dashboard CSS for additional effects
+ * 
+ * Alternative dashboard styles with wider layout to accommodate
+ * more effect buttons. Used when NUM_EFFECTS exceeds standard grid.
+ */
 
 // Dashboard CSS - Updated for more effects
 const char DASHBOARD_CSS[] PROGMEM = R"rawliteral(
@@ -150,4 +158,4 @@ const char DASHBOARD_EFFECTS_HTML[] PROGMEM = R"rawliteral(
 </div>
 )rawliteral";
 
-#endif
+#endif // UI_DASHBOARD_EXTENDED_H
