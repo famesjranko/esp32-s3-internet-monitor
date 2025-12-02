@@ -236,4 +236,45 @@ inline void handleMqttTest() {
   server.send(200, "application/json", output);
 }
 
+// ===========================================
+// RESET MQTT CONFIG
+// ===========================================
+
+/**
+ * Handle POST /mqtt/reset
+ * Clears all MQTT configuration from NVS
+ */
+inline void handleMqttReset() {
+  if (!checkAuth()) { sendUnauthorized(); return; }
+  
+  // Disconnect if connected
+  mqttDisconnect();
+  
+  // Reset config to defaults
+  mqttConfig.enabled = false;
+  mqttConfig.broker[0] = '\0';
+  mqttConfig.port = 1883;
+  mqttConfig.username[0] = '\0';
+  mqttConfig.password[0] = '\0';
+  strlcpy(mqttConfig.baseTopic, "internet_monitor", sizeof(mqttConfig.baseTopic));
+  mqttConfig.publishIntervalMs = 30000;
+  mqttConfig.homeAssistantDiscovery = false;
+  mqttConfig.connected = false;
+  mqttConfig.connectionFailures = 0;
+  
+  // Save cleared config to NVS
+  saveMQTTConfigToNVS();
+  
+  Serial.println("[MQTT] Configuration reset to defaults");
+  
+  JsonDocument doc;
+  doc["success"] = true;
+  doc["message"] = "MQTT configuration cleared";
+  doc["status"] = getMQTTStatusText();
+  
+  String output;
+  serializeJson(doc, output);
+  server.send(200, "application/json", output);
+}
+
 #endif // WEB_MQTT_HANDLERS_H

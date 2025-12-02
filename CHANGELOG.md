@@ -9,11 +9,17 @@ All notable changes to the ESP32-S3 Internet Monitor project.
   - Visual feedback: red rings fill inward as progress indicator
   - Works during normal operation (not at boot)
   - Clears WiFi, password, MQTT, and display settings
+- **MQTT Reset Button**: Clear all MQTT config from dashboard
+- **MQTT Config Validation**: Test connection required before saving
+  - Enable toggle disabled until test passes
+  - Save button disabled until test passes
+  - Config changes reset test state (must re-test)
 
 ### Changed
 - **Config Portal**: Now open network (no password required)
   - Removed auth requirement from portal pages
   - Easier first-time setup and recovery
+- **MQTT Defaults**: HA Discovery now defaults to OFF
 - **Code Organization**: Improved modular structure
   - Moved `effectNames[]` and `effectDefaults[][]` to `effects/effects_base.h`
   - Moved `showFactoryResetProgress()` to `effects/effects_base.h`
@@ -27,6 +33,7 @@ All notable changes to the ESP32-S3 Internet Monitor project.
 - **SSID Buffer Overflow**: Long SSIDs no longer corrupt network list display
   - Increased buffer from 200 to 400 bytes
   - Added truncation for SSIDs > 48 characters
+- **Input Autofill Styling**: Browser autofill no longer shows white backgrounds
 - **JavaScript Improvements**:
   - Fixed deprecated `event` global usage (now passed as parameter)
   - Added null checks on stats data to prevent crashes

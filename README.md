@@ -223,6 +223,7 @@ All endpoints except `/login` require session authentication.
 | `/mqtt/config` | POST | Save MQTT configuration |
 | `/mqtt/status` | GET | MQTT connection status |
 | `/mqtt/test` | POST | Test MQTT connection |
+| `/mqtt/reset` | POST | Clear MQTT configuration |
 
 ## OTA Updates
 

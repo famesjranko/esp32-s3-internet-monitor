@@ -110,6 +110,8 @@ const char CSS_LAYOUT[] PROGMEM = R"rawliteral(
 const char CSS_BUTTONS[] PROGMEM = R"rawliteral(
 .btn{padding:10px;border:1px solid #303048;border-radius:8px;background:#252540;color:#808098;font-size:.8rem;cursor:pointer;transition:all .15s}
 .btn:hover{background:#303050;color:#c8c8d8}
+.btn:disabled,.btn[disabled]{opacity:0.4!important;cursor:not-allowed!important;background:#1a1a2e!important;color:#404058!important;border-color:#252540!important}
+.btn:disabled:hover,.btn[disabled]:hover{background:#1a1a2e!important;color:#404058!important}
 .btn.active{background:#4338ca;border-color:#4338ca;color:#d8d8e8}
 .btn.off.active{background:#b91c1c;border-color:#b91c1c}
 .btn-sm{padding:6px 12px;font-size:.7rem;border-radius:6px}

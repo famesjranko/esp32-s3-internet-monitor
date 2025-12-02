@@ -140,16 +140,150 @@ const char DASHBOARD_JS[] PROGMEM = R"rawliteral(
     ['sys','diag','mqtt'].forEach(id=>{if(localStorage.getItem(id)==='0'){const t=document.getElementById(id+'T'),b=document.getElementById(id+'B');if(t&&b){t.classList.remove('collapsed');b.classList.remove('collapsed')}}});
     setInterval(upd,2000);upd();
     
+    // MQTT State
+    let mqttTestPassed=false;
+    let mqttOriginalConfig={};
+    
+    // Store original config on page load
+    function mqttStoreOriginal(){
+      mqttOriginalConfig={
+        broker:document.getElementById('mqttBroker').value,
+        port:document.getElementById('mqttPort').value,
+        user:document.getElementById('mqttUser').value,
+        topic:document.getElementById('mqttTopic').value,
+        interval:document.getElementById('mqttInt').value,
+        ha:document.getElementById('mqttHA').value
+      };
+    }
+    
+    // Check if CONNECTION settings changed (require re-test)
+    function mqttConnectionChanged(){
+      const c=mqttOriginalConfig;
+      return c.broker!==document.getElementById('mqttBroker').value||
+             c.port!==document.getElementById('mqttPort').value||
+             c.user!==document.getElementById('mqttUser').value;
+      // Note: password not tracked (shown as ••••••••)
+    }
+    
+    // Check if ANY settings changed (for save button)
+    function mqttAnyChanged(){
+      const c=mqttOriginalConfig;
+      return c.broker!==document.getElementById('mqttBroker').value||
+             c.port!==document.getElementById('mqttPort').value||
+             c.user!==document.getElementById('mqttUser').value||
+             c.topic!==document.getElementById('mqttTopic').value||
+             c.interval!==document.getElementById('mqttInt').value||
+             c.ha!==document.getElementById('mqttHA').value||
+             document.getElementById('mqttPass').value.length>0; // password entered
+    }
+    
+    // Helper to style button as enabled/disabled
+    function setBtnState(btn,enabled){
+      if(!btn)return;
+      btn.disabled=!enabled;
+      if(enabled){
+        btn.style.opacity='1';
+        btn.style.cursor='pointer';
+      }else{
+        btn.style.opacity='0.35';
+        btn.style.cursor='not-allowed';
+      }
+    }
+    
+    // Update button/toggle states
+    function mqttUpdateUI(){
+      const broker=document.getElementById('mqttBroker').value.trim();
+      const hasBroker=broker.length>0;
+      const isEnabled=document.getElementById('mqttEn').value==='1';
+      const hasConfig=mqttOriginalConfig.broker&&mqttOriginalConfig.broker.length>0;
+      const connChanged=mqttConnectionChanged();
+      
+      // Test: enabled if broker entered
+      setBtnState(document.getElementById('mqttTestBtn'),hasBroker);
+      
+      // Save: enabled if test passed, OR if saved config exists and only non-connection settings changed
+      const canSave=mqttTestPassed||(hasConfig&&!connChanged&&mqttAnyChanged());
+      setBtnState(document.getElementById('mqttSaveBtn'),canSave);
+      
+      // Reset: enabled if saved config exists
+      setBtnState(document.getElementById('mqttResetBtn'),hasConfig);
+      
+      // Enable toggle: can turn OFF anytime, can only turn ON if SAVED config exists
+      const toggle=document.getElementById('mqttEnToggle');
+      const toggleBg=document.getElementById('mqttEnBg');
+      if(toggle){
+        const canToggle=isEnabled||hasConfig;
+        toggle.style.opacity=canToggle?'1':'0.3';
+        toggle.style.pointerEvents=canToggle?'auto':'none';
+        // Dim background when disabled and OFF, restore when enabled
+        if(toggleBg){
+          if(!canToggle){
+            toggleBg.style.background='#1a1a2e';
+          }else if(!isEnabled){
+            toggleBg.style.background='#303048';
+          }
+          // If enabled, leave it as-is (purple)
+        }
+      }
+    }
+    
+    // Connection field change handler - reset test state
+    function mqttOnConnectionChange(){
+      mqttTestPassed=false;
+      mqttUpdateUI();
+    }
+    
+    // Non-connection field change handler - just update UI
+    function mqttOnChange(){
+      mqttUpdateUI();
+    }
+    
+    // Topic field change - also update preview text
+    function mqttOnTopicChange(){
+      const topic=document.getElementById('mqttTopic').value||'internet_monitor';
+      const preview=document.getElementById('mqttPubTopic');
+      if(preview)preview.textContent=topic+'/state';
+      mqttUpdateUI();
+    }
+    
+    // Attach change listeners
+    ['mqttBroker','mqttPort','mqttUser','mqttPass'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el){el.addEventListener('input',mqttOnConnectionChange);el.addEventListener('change',mqttOnConnectionChange);}
+    });
+    // Topic has special handler for preview
+    const topicEl=document.getElementById('mqttTopic');
+    if(topicEl){topicEl.addEventListener('input',mqttOnTopicChange);topicEl.addEventListener('change',mqttOnTopicChange);}
+    // Interval uses regular handler
+    const intEl=document.getElementById('mqttInt');
+    if(intEl){intEl.addEventListener('input',mqttOnChange);intEl.addEventListener('change',mqttOnChange);}
+    
+    // Initialize
+    mqttStoreOriginal();
+    // If already connected, test is implicitly passed
+    const initStatus=document.getElementById('mqttStatus');
+    if(initStatus&&initStatus.textContent==='Connected')mqttTestPassed=true;
+    mqttUpdateUI();
+    
     // MQTT Functions
     function mqttToggle(){
       const inp=document.getElementById('mqttEn');
-      const en=inp.value!=='1';
+      const currentlyEnabled=inp.value==='1';
+      const hasConfig=mqttOriginalConfig.broker&&mqttOriginalConfig.broker.length>0;
+      
+      // Can only turn ON if saved config exists
+      if(!currentlyEnabled&&!hasConfig)return;
+      
+      const en=!currentlyEnabled;
       inp.value=en?'1':'0';
       document.getElementById('mqttEnBg').style.background=en?'#4338ca':'#303048';
       document.getElementById('mqttEnKnob').style.left=en?'22px':'2px';
+      
+      // Save immediately when toggling (only enabled state)
       const d=new FormData();d.append('enabled',en?'1':'0');
       fetch('/mqtt/config',{method:'POST',body:d,credentials:'same-origin'}).then(r=>r.json()).then(r=>{
         const s=document.getElementById('mqttStatus');if(s){s.textContent=r.status;s.style.color=r.connected?'#22c55e':(en?'#f59e0b':'#707088');}
+        mqttUpdateUI();
       }).catch(err=>console.warn('MQTT toggle error:',err));
     }
     function togHA(){
@@ -158,8 +292,13 @@ const char DASHBOARD_JS[] PROGMEM = R"rawliteral(
       inp.value=en?'1':'0';
       document.getElementById('mqttHABg').style.background=en?'#4338ca':'#303048';
       document.getElementById('mqttHAKnob').style.left=en?'22px':'2px';
+      mqttOnChange();
     }
     function mqttSave(){
+      const hasConfig=mqttOriginalConfig.broker&&mqttOriginalConfig.broker.length>0;
+      const connChanged=mqttConnectionChanged();
+      const canSave=mqttTestPassed||(hasConfig&&!connChanged);
+      if(!canSave){showError('Please test connection first','Cannot Save');return;}
       const d=new FormData();
       d.append('enabled',document.getElementById('mqttEn').value);
       d.append('broker',document.getElementById('mqttBroker').value);
@@ -171,25 +310,71 @@ const char DASHBOARD_JS[] PROGMEM = R"rawliteral(
       d.append('ha_discovery',document.getElementById('mqttHA').value);
       fetch('/mqtt/config',{method:'POST',body:d,credentials:'same-origin'}).then(r=>r.json()).then(r=>{
         const s=document.getElementById('mqttStatus');if(s){s.textContent=r.status;s.style.color=r.connected?'#22c55e':'#f59e0b';}
-        if(r.success)showSuccess('MQTT settings saved!','Settings Saved');
-        else showError('Error saving settings','Save Failed');
+        if(r.success){
+          showSuccess('MQTT settings saved!','Settings Saved');
+          mqttStoreOriginal();// Update original to new saved values
+          mqttUpdateUI();
+        }else showError('Error saving settings','Save Failed');
       }).catch(()=>showError('Error saving MQTT settings','Save Failed'));
     }
     function mqttTest(){
       const s=document.getElementById('mqttStatus');
       if(s){s.textContent='Testing...';s.style.color='#f59e0b';}
-      fetch('/mqtt/test',{method:'POST',credentials:'same-origin'}).then(r=>r.json()).then(r=>{
-        if(s){s.textContent=r.success?'Connected':'Failed';s.style.color=r.success?'#22c55e':'#ef4444';}
+      const d=new FormData();
+      d.append('broker',document.getElementById('mqttBroker').value);
+      d.append('port',document.getElementById('mqttPort').value);
+      d.append('username',document.getElementById('mqttUser').value);
+      d.append('password',document.getElementById('mqttPass').value);
+      fetch('/mqtt/test',{method:'POST',body:d,credentials:'same-origin'}).then(r=>r.json()).then(r=>{
+        mqttTestPassed=r.success;
+        if(s){s.textContent=r.success?'Test Passed':'Test Failed';s.style.color=r.success?'#22c55e':'#ef4444';}
         if(r.success)showSuccess(r.message,'Connection Test');
         else showError(r.message,'Connection Test');
+        mqttUpdateUI();
       }).catch(()=>{
+        mqttTestPassed=false;
         if(s){s.textContent='Error';s.style.color='#ef4444';}
         showError('Connection test failed','Test Failed');
+        mqttUpdateUI();
       });
+    }
+    function mqttReset(){
+      showConfirm('Clear all MQTT settings?',{title:'Reset MQTT',danger:true,callback:function(ok){
+        if(!ok)return;
+        fetch('/mqtt/reset',{method:'POST',credentials:'same-origin'}).then(r=>r.json()).then(r=>{
+          if(r.success){
+            showSuccess('MQTT configuration cleared','Reset Complete');
+            // Clear form fields
+            document.getElementById('mqttBroker').value='';
+            document.getElementById('mqttPort').value='1883';
+            document.getElementById('mqttUser').value='';
+            const passEl=document.getElementById('mqttPass');
+            passEl.value='';
+            passEl.placeholder='(optional)';
+            document.getElementById('mqttTopic').value='internet_monitor';
+            document.getElementById('mqttInt').value='30';
+            document.getElementById('mqttHA').value='0';
+            document.getElementById('mqttHABg').style.background='#303048';
+            document.getElementById('mqttHAKnob').style.left='2px';
+            document.getElementById('mqttEn').value='0';
+            document.getElementById('mqttEnBg').style.background='#303048';
+            document.getElementById('mqttEnKnob').style.left='2px';
+            const s=document.getElementById('mqttStatus');if(s){s.textContent=r.status||'Disabled';s.style.color='#707088';}
+            const p=document.getElementById('mqttPubTopic');if(p)p.textContent='internet_monitor/state';
+            mqttTestPassed=false;
+            mqttStoreOriginal();
+            mqttUpdateUI();
+          }else showError('Error resetting MQTT','Reset Failed');
+        }).catch(()=>showError('Error resetting MQTT','Reset Failed'));
+      }});
     }
     // Update MQTT status periodically
     function updMqtt(){fetch('/mqtt/status',{credentials:'same-origin'}).then(r=>r.json()).then(d=>{
-      const s=document.getElementById('mqttStatus');if(s){s.textContent=d.status;s.style.color=d.connected?'#22c55e':(d.enabled?'#f59e0b':'#707088');}
+      const s=document.getElementById('mqttStatus');
+      // Only update status if not in middle of test
+      if(s&&s.textContent!=='Testing...'){
+        s.textContent=d.status;s.style.color=d.connected?'#22c55e':(d.enabled?'#f59e0b':'#707088');
+      }
       // Sync enabled toggle if it changed externally
       const inp=document.getElementById('mqttEn');
       if(inp&&((inp.value==='1')!==d.enabled)){
@@ -198,6 +383,9 @@ const char DASHBOARD_JS[] PROGMEM = R"rawliteral(
         if(bg)bg.style.background=d.enabled?'#4338ca':'#303048';
         if(knob)knob.style.left=d.enabled?'22px':'2px';
       }
+      // If connected, test is implicitly passed
+      if(d.connected&&!mqttConnectionChanged())mqttTestPassed=true;
+      mqttUpdateUI();
     }).catch(()=>{});}
     setInterval(updMqtt,5000);
 )rawliteral";

@@ -45,6 +45,7 @@ inline void setupWebServer() {
   server.on("/mqtt/config", HTTP_POST, handleMqttSaveConfig);
   server.on("/mqtt/status", HTTP_GET, handleMqttStatus);
   server.on("/mqtt/test", HTTP_POST, handleMqttTest);
+  server.on("/mqtt/reset", HTTP_POST, handleMqttReset);
   
   server.begin();
   Serial.println("Web server started");
