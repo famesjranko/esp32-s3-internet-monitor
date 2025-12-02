@@ -5,6 +5,40 @@
 #include "../config.h"
 
 // ===========================================
+// EFFECT CONFIGURATION DATA
+// ===========================================
+
+// Effect names for display in UI
+static const char* effectNames[] = {
+  "Off", "Solid", "Ripple", "Rainbow", "Rain",
+  "Matrix", "Fire", "Plasma", "Ocean", "Nebula", "Life",
+  "Pong", "Metaballs", "Interference", "Noise", "Pool", "Rings", "Ball"
+};
+
+// Per-effect default brightness and speed
+// Format: {brightness, speed}
+static const uint8_t effectDefaults[][2] = {
+  {5, 50},    // 0: Off (doesn't matter)
+  {5, 50},    // 1: Solid (speed doesn't matter)
+  {10, 72},   // 2: Ripple
+  {5, 72},    // 3: Rainbow
+  {10, 36},   // 4: Rain
+  {5, 50},    // 5: Matrix
+  {5, 51},    // 6: Fire
+  {5, 100},   // 7: Plasma
+  {5, 58},    // 8: Ocean
+  {5, 58},    // 9: Nebula
+  {5, 25},    // 10: Life
+  {5, 36},    // 11: Pong
+  {5, 100},   // 12: Metaballs
+  {5, 50},    // 13: Interference
+  {5, 84},    // 14: Noise
+  {5, 80},    // 15: Pool
+  {10, 57},   // 16: Rings
+  {25, 57},   // 17: Ball
+};
+
+// ===========================================
 // EXTERNAL REFERENCES (defined in main .ino)
 // ===========================================
 
@@ -237,6 +271,48 @@ inline float getScaledTime() {
 // ===========================================
 // Effects with static state should implement a reset function.
 // Call resetAllEffectState() when switching effects to start fresh.
+
+// ===========================================
+// FACTORY RESET EFFECT
+// ===========================================
+
+/**
+ * @brief Show factory reset progress on LED matrix
+ * 
+ * Displays a clear countdown effect:
+ * - Red border that fills inward as time progresses
+ * - At 0%: empty
+ * - At 100%: full red matrix
+ * 
+ * @param progress 0.0 to 1.0 (0 = just started, 1 = complete)
+ */
+inline void showFactoryResetProgress(float progress) {
+  pixels.clear();
+  
+  // Calculate how many "rings" to fill (0-4 rings for 8x8 matrix)
+  int rings = (int)(progress * 5);  // 0, 1, 2, 3, or 4 rings
+  
+  for (int row = 0; row < MATRIX_SIZE; row++) {
+    for (int col = 0; col < MATRIX_SIZE; col++) {
+      // Calculate which ring this pixel is in (0 = outer, 3 = center)
+      int ringX = min(col, MATRIX_SIZE - 1 - col);
+      int ringY = min(row, MATRIX_SIZE - 1 - row);
+      int ring = min(ringX, ringY);
+      
+      // Light up if within the current ring count
+      if (ring < rings) {
+        // Solid red for completed rings
+        pixels.setPixelColor(row * MATRIX_SIZE + col, pixels.Color(255, 0, 0));
+      } else if (ring == rings) {
+        // Pulsing red for current ring (progress within this ring)
+        float ringProgress = (progress * 5) - rings;
+        uint8_t brightness = (uint8_t)(ringProgress * 255);
+        pixels.setPixelColor(row * MATRIX_SIZE + col, pixels.Color(brightness, 0, 0));
+      }
+    }
+  }
+  pixels.show();
+}
 
 // Forward declarations for reset functions (implemented in each effect file)
 void resetBallEffect();

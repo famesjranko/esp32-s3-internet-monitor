@@ -160,6 +160,7 @@ inline void handleRoot() {
   server.sendContent("</div>");
 
   // MQTT - collapsible, default collapsed
+  bool hasBroker = strlen(mqttConfig.broker) > 0;
   String mqttStatusColor = mqttConfig.connected ? "#22c55e" : (mqttConfig.enabled ? "#f59e0b" : "#707088");
   server.sendContent("<div class=\"card\"><div class=\"card-title collapsible collapsed\" id=\"mqttT\" onclick=\"T('mqtt')\"><span>MQTT</span><span class=\"toggle\">▼</span></div>");
   server.sendContent("<div class=\"card-body collapsed\" id=\"mqttB\">");
@@ -167,9 +168,11 @@ inline void handleRoot() {
   // Status row
   server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Status</span><span class=\"stat-val\" id=\"mqttStatus\" style=\"color:" + mqttStatusColor + "\">" + getMQTTStatusText() + "</span></div>");
   
-  // Enable toggle
+  // Enable toggle - disabled unless config is valid/tested, OR currently enabled (so can be turned off)
+  bool toggleEnabled = mqttConfig.enabled || (hasBroker && mqttConfig.connected);
+  String toggleOpacity = toggleEnabled ? "" : "opacity:0.5;pointer-events:none;";
   server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Enabled</span>");
-  server.sendContent("<label class=\"tog\" onclick=\"mqttToggle()\">");
+  server.sendContent("<label class=\"tog\" id=\"mqttEnToggle\" onclick=\"mqttToggle()\" style=\"" + toggleOpacity + "\">");
   server.sendContent("<span class=\"tog-bg\" id=\"mqttEnBg\" style=\"background:" + String(mqttConfig.enabled ? "#4338ca" : "#303048") + "\"></span>");
   server.sendContent("<span class=\"tog-knob\" id=\"mqttEnKnob\" style=\"left:" + String(mqttConfig.enabled ? "22px" : "2px") + "\"></span>");
   server.sendContent("<input type=\"hidden\" id=\"mqttEn\" value=\"" + String(mqttConfig.enabled ? "1" : "0") + "\">");
@@ -177,27 +180,27 @@ inline void handleRoot() {
   
   // Broker
   server.sendContent("<div class=\"stat\" style=\"flex-wrap:wrap\"><span class=\"stat-label\">Broker</span>");
-  server.sendContent("<input type=\"text\" id=\"mqttBroker\" value=\"" + String(mqttConfig.broker) + "\" placeholder=\"mqtt.example.com\" style=\"flex:1;min-width:120px;padding:6px 8px;background:#252540;border:1px solid #303048;border-radius:4px;color:#b8b8c8;font-size:.8rem\"></div>");
+  server.sendContent("<input type=\"text\" id=\"mqttBroker\" value=\"" + String(mqttConfig.broker) + "\" placeholder=\"mqtt.example.com\" style=\"flex:1;min-width:120px;margin-left:8px;padding:6px 8px;background:#252540;border:1px solid #303048;border-radius:4px;color:#b8b8c8;font-size:.8rem\"></div>");
   
   // Port
   server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Port</span>");
-  server.sendContent("<input type=\"number\" id=\"mqttPort\" value=\"" + String(mqttConfig.port) + "\" style=\"width:70px;padding:6px 8px;background:#252540;border:1px solid #303048;border-radius:4px;color:#b8b8c8;font-size:.8rem\"></div>");
+  server.sendContent("<input type=\"number\" id=\"mqttPort\" value=\"" + String(mqttConfig.port) + "\" style=\"width:70px;margin-left:8px;padding:6px 8px;background:#252540;border:1px solid #303048;border-radius:4px;color:#b8b8c8;font-size:.8rem\"></div>");
   
   // Username
   server.sendContent("<div class=\"stat\" style=\"flex-wrap:wrap\"><span class=\"stat-label\">Username</span>");
-  server.sendContent("<input type=\"text\" id=\"mqttUser\" value=\"" + String(mqttConfig.username) + "\" placeholder=\"(optional)\" style=\"flex:1;min-width:100px;padding:6px 8px;background:#252540;border:1px solid #303048;border-radius:4px;color:#b8b8c8;font-size:.8rem\"></div>");
+  server.sendContent("<input type=\"text\" id=\"mqttUser\" value=\"" + String(mqttConfig.username) + "\" placeholder=\"(optional)\" style=\"flex:1;min-width:100px;margin-left:8px;padding:6px 8px;background:#252540;border:1px solid #303048;border-radius:4px;color:#b8b8c8;font-size:.8rem\"></div>");
   
   // Password
   server.sendContent("<div class=\"stat\" style=\"flex-wrap:wrap\"><span class=\"stat-label\">Password</span>");
-  server.sendContent("<input type=\"password\" id=\"mqttPass\" placeholder=\"" + String(strlen(mqttConfig.password) > 0 ? "••••••••" : "(optional)") + "\" style=\"flex:1;min-width:100px;padding:6px 8px;background:#252540;border:1px solid #303048;border-radius:4px;color:#b8b8c8;font-size:.8rem\"></div>");
+  server.sendContent("<input type=\"password\" id=\"mqttPass\" placeholder=\"" + String(strlen(mqttConfig.password) > 0 ? "••••••••" : "(optional)") + "\" style=\"flex:1;min-width:100px;margin-left:8px;padding:6px 8px;background:#252540;border:1px solid #303048;border-radius:4px;color:#b8b8c8;font-size:.8rem\"></div>");
   
   // Topic
   server.sendContent("<div class=\"stat\" style=\"flex-wrap:wrap\"><span class=\"stat-label\">Base Topic</span>");
-  server.sendContent("<input type=\"text\" id=\"mqttTopic\" value=\"" + String(mqttConfig.baseTopic) + "\" style=\"flex:1;min-width:120px;padding:6px 8px;background:#252540;border:1px solid #303048;border-radius:4px;color:#b8b8c8;font-size:.8rem\"></div>");
+  server.sendContent("<input type=\"text\" id=\"mqttTopic\" value=\"" + String(mqttConfig.baseTopic) + "\" style=\"flex:1;min-width:120px;margin-left:8px;padding:6px 8px;background:#252540;border:1px solid #303048;border-radius:4px;color:#b8b8c8;font-size:.8rem\"></div>");
   
   // Interval
   server.sendContent("<div class=\"stat\"><span class=\"stat-label\">Interval (sec)</span>");
-  server.sendContent("<input type=\"number\" id=\"mqttInt\" value=\"" + String(mqttConfig.publishIntervalMs / 1000) + "\" min=\"5\" max=\"3600\" style=\"width:70px;padding:6px 8px;background:#252540;border:1px solid #303048;border-radius:4px;color:#b8b8c8;font-size:.8rem\"></div>");
+  server.sendContent("<input type=\"number\" id=\"mqttInt\" value=\"" + String(mqttConfig.publishIntervalMs / 1000) + "\" min=\"5\" max=\"3600\" style=\"width:70px;margin-left:8px;padding:6px 8px;background:#252540;border:1px solid #303048;border-radius:4px;color:#b8b8c8;font-size:.8rem\"></div>");
   
   // HA Discovery toggle
   server.sendContent("<div class=\"stat\"><span class=\"stat-label\">HA Discovery</span>");
@@ -209,11 +212,12 @@ inline void handleRoot() {
   
   // Buttons
   server.sendContent("<div style=\"display:flex;gap:8px;margin-top:12px\">");
-  server.sendContent("<button class=\"btn\" style=\"flex:1\" onclick=\"mqttSave()\">Save</button>");
-  server.sendContent("<button class=\"btn\" style=\"flex:1\" onclick=\"mqttTest()\">Test</button>");
+  server.sendContent("<button class=\"btn\" style=\"flex:1\" id=\"mqttTestBtn\" onclick=\"mqttTest()\"" + String(hasBroker ? "" : " disabled") + ">Test</button>");
+  server.sendContent("<button class=\"btn\" style=\"flex:1\" id=\"mqttSaveBtn\" onclick=\"mqttSave()\" disabled>Save</button>");
+  server.sendContent("<button class=\"btn\" style=\"flex:1;background:#7f1d1d;color:#fca5a5\" id=\"mqttResetBtn\" onclick=\"mqttReset()\"" + String(hasBroker ? "" : " disabled") + ">Reset</button>");
   server.sendContent("</div>");
   
-  server.sendContent("<p style=\"font-size:.6rem;color:#505068;margin-top:8px\">Publishes to: " + String(mqttConfig.baseTopic) + "/state</p>");
+  server.sendContent("<p style=\"font-size:.6rem;color:#505068;margin-top:8px\">Publishes to: <span id=\"mqttPubTopic\">" + String(mqttConfig.baseTopic) + "/state</span></p>");
   server.sendContent("</div></div>");
 
   // System - collapsible, default collapsed

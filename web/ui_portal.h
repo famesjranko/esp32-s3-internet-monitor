@@ -28,6 +28,7 @@ h1{font-size:1.4rem;font-weight:600;margin-bottom:4px;color:#c8c8d8;text-align:c
 .no-networks{text-align:center;padding:20px;color:#707088}
 input[type=password]{width:100%;padding:12px;border:1px solid #303048;border-radius:8px;background:#252540;color:#c8c8d8;font-size:1rem;margin:8px 0}
 input:focus{outline:none;border-color:#6366f1}
+input:-webkit-autofill{-webkit-box-shadow:0 0 0 1000px #252540 inset!important;-webkit-text-fill-color:#c8c8d8!important}
 .btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:.9rem;font-weight:600;cursor:pointer;transition:background .15s;margin-top:8px}
 .btn.scan{background:#303048;color:#808098}
 .btn.scan:hover{background:#404060}
@@ -44,11 +45,11 @@ input:focus{outline:none;border-color:#6366f1}
 
 // Portal JavaScript
 const char PORTAL_JS[] PROGMEM = R"rawliteral(
-let ssid='',isOpen=0;
-function sel(s,o){
+let ssid='',isOpen=0,scanBtn=null;
+function sel(s,o,e){
   ssid=s;isOpen=o;
   document.querySelectorAll('.network').forEach(n=>n.classList.remove('selected'));
-  event.currentTarget.classList.add('selected');
+  if(e&&e.currentTarget)e.currentTarget.classList.add('selected');
   if(o){
     document.getElementById('pwcard').style.display='none';
     document.getElementById('status').textContent='Selected open network: '+s;
@@ -59,15 +60,19 @@ function sel(s,o){
     document.getElementById('pw').focus();
   }
 }
-function scan(){
-  const btn=event.currentTarget;
+function scan(e){
+  const btn=e?e.currentTarget:scanBtn;
+  if(!btn)return;
+  scanBtn=btn;
   btn.disabled=true;
   btn.innerHTML='<span class="spinner"></span>Scanning...';
   document.getElementById('status').textContent='';
   function poll(){
     fetch('/scan').then(r=>r.text()).then(h=>{
       document.getElementById('networks').innerHTML=h;
-      if(h.indexOf('Scanning')>-1){
+      // Check for scanning indicator (spinner class or no network entries)
+      const stillScanning=h.indexOf('spinner')>-1||h.indexOf('Scanning')>-1;
+      if(stillScanning){
         setTimeout(poll,500);
       }else{
         btn.disabled=false;

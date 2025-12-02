@@ -342,9 +342,18 @@ inline bool mqttTestConnection() {
     return true;
   }
   
+  // Temporarily enable for test (mqttConnect checks isConfigured which requires enabled)
+  bool wasEnabled = mqttConfig.enabled;
+  mqttConfig.enabled = true;
+  
   // Force immediate connection attempt
   mqttConfig.lastConnectAttempt = 0;
-  return mqttConnect();
+  bool result = mqttConnect();
+  
+  // Restore enabled state
+  mqttConfig.enabled = wasEnabled;
+  
+  return result;
 }
 
 // ===========================================

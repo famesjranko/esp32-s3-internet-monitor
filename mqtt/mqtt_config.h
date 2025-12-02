@@ -35,7 +35,7 @@ struct MQTTConfig {
   bool publishOnStateChange = true;
   
   // Features
-  bool homeAssistantDiscovery = true;
+  bool homeAssistantDiscovery = false;
   
   // Runtime state (not persisted)
   bool connected = false;
@@ -111,7 +111,7 @@ inline void loadMQTTConfigFromNVS() {
   strncpy(mqttConfig.baseTopic, topic.c_str(), sizeof(mqttConfig.baseTopic) - 1);
   
   mqttConfig.publishIntervalMs = preferences.getULong(NVS_KEY_MQTT_INTERVAL, MQTT_DEFAULT_INTERVAL_MS);
-  mqttConfig.homeAssistantDiscovery = preferences.getBool(NVS_KEY_MQTT_HA_DISC, true);
+  mqttConfig.homeAssistantDiscovery = preferences.getBool(NVS_KEY_MQTT_HA_DISC, false);
   
   preferences.end();
   
