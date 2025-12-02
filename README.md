@@ -52,7 +52,7 @@ An ESP32-S3 internet connectivity monitor with an 8x8 RGB LED matrix. Checks you
 
 1. **Arduino IDE Setup:** Follow the [Waveshare Wiki Guide](https://www.waveshare.com/wiki/ESP32-S3-Matrix#Working_with_Arduino)
 
-2. **Download:** Clone or download this repo. Rename folder to `InternetMonitor` (must match .ino filename)
+2. **Download:** Clone or download this repo, then open the `InternetMonitor` folder in Arduino IDE
 
 3. **Install Libraries** (Tools → Manage Libraries):
    - Adafruit NeoPixel
@@ -71,7 +71,7 @@ An ESP32-S3 internet connectivity monitor with an 8x8 RGB LED matrix. Checks you
 
 6. **Access Dashboard:** Device shows green when online. Find IP in Serial Monitor or router, open in browser.
 
-> **Alternative:** Pre-configure WiFi in `config.h` before uploading to skip the setup portal.
+> **Alternative:** Pre-configure WiFi in `InternetMonitor/config.h` before uploading to skip the setup portal.
 
 ## Web Interface
 
@@ -189,7 +189,7 @@ Effects change color based on connectivity state (green → yellow → red).
 
 ## Configuration
 
-Most settings are configured via the web interface. Optionally, edit `config.h` before uploading to pre-configure:
+Most settings are configured via the web interface. Optionally, edit `InternetMonitor/config.h` before uploading to pre-configure:
 
 ```cpp
 // WiFi (leave blank to use config portal instead)
@@ -271,17 +271,26 @@ Both methods clear:
 ## Project Structure
 
 ```
-InternetMonitor/
-├── InternetMonitor.ino    # Entry point
-├── config.h               # User configuration
-├── effects.h              # Effect dispatcher
-├── core/                  # Types, state machine, crypto
-├── effects/               # 18 LED effect implementations
-├── mqtt/                  # MQTT client and HA discovery
-├── network/               # Connectivity checking
-├── storage/               # NVS persistence
-├── system/                # Tasks, OTA, watchdog, factory reset
-├── web/                   # HTTP handlers and UI
-├── CLAUDE.md              # Developer documentation
-└── CHANGELOG.md           # Version history
+esp32-s3-internet-monitor/
+├── InternetMonitor/           # Arduino sketch (open this folder in IDE)
+│   ├── InternetMonitor.ino    # Entry point
+│   ├── config.h               # User configuration
+│   ├── effects.h              # Effect dispatcher
+│   ├── core/                  # Types, state machine
+│   ├── effects/               # 18 LED effect implementations
+│   ├── mqtt/                  # MQTT client and HA discovery
+│   ├── network/               # Connectivity checking
+│   ├── storage/               # NVS persistence
+│   ├── system/                # Tasks, OTA, watchdog, factory reset
+│   └── web/                   # HTTP handlers and UI
+├── docs/                      # Documentation
+│   └── DEVELOPER_GUIDE.md     # Developer documentation
+├── images/                    # Documentation images
+├── CHANGELOG.md               # Version history
+├── CLAUDE.md                  # Claude Code context
+└── README.md                  # This file
 ```
+
+## Contributing
+
+See [Developer Guide](docs/DEVELOPER_GUIDE.md) for architecture details, code patterns, and contribution guidelines.
