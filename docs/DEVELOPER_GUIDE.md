@@ -272,7 +272,7 @@ All endpoints except `/login` require session authentication.
   "success_rate": 99.8,
   "wifi_rssi": -52,
   "temperature": 42.5,
-  "firmware": "0.7.0"
+  "firmware": "0.7.1"
 }
 ```
 
