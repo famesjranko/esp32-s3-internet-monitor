@@ -35,7 +35,10 @@ const char* FW_VERSION    = "0.7.1";
 // TIMING CONFIGURATION (milliseconds)
 // ===========================================
 #define CHECK_INTERVAL    10000  // Check internet every 10 seconds
-#define HTTP_TIMEOUT      5000   // 5 second timeout per request
+// The two timeouts are separate: a stalled URL costs up to CONNECT + READ (5 s)
+// plus DNS. Two URLs are tried, so the worst case is about CHECK_INTERVAL.
+#define CHECK_CONNECT_TIMEOUT 2000  // TCP connect timeout per URL
+#define CHECK_READ_TIMEOUT    3000  // Max silence while waiting for the reply, per URL
 #define WIFI_TIMEOUT      20000  // 20 seconds to connect
 #define HEARTBEAT_INTERVAL 2000  // Pulse every 2 seconds
 #define FADE_DURATION     500    // 500ms fade transitions
@@ -161,12 +164,13 @@ const char* FW_VERSION    = "0.7.1";
 
 // ===========================================
 // CHECK URLs (multiple for redundancy)
+// Only the first two are tried; keep them on different providers.
 // ===========================================
 const char* checkUrls[] = {
   "http://clients3.google.com/generate_204",
+  "http://cp.cloudflare.com/",
   "http://www.gstatic.com/generate_204",
-  "http://connectivitycheck.gstatic.com/generate_204",
-  "http://cp.cloudflare.com/"
+  "http://connectivitycheck.gstatic.com/generate_204"
 };
 const int numCheckUrls = 4;
 
