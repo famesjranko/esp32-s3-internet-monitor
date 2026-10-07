@@ -163,12 +163,13 @@ const char* FW_VERSION    = "0.7.1";
 
 // ===========================================
 // CHECK URLs (multiple for redundancy)
+// Only the first two are tried; keep them on different providers.
 // ===========================================
 const char* checkUrls[] = {
   "http://clients3.google.com/generate_204",
+  "http://cp.cloudflare.com/",
   "http://www.gstatic.com/generate_204",
-  "http://connectivitycheck.gstatic.com/generate_204",
-  "http://cp.cloudflare.com/"
+  "http://connectivitycheck.gstatic.com/generate_204"
 };
 const int numCheckUrls = 4;
 

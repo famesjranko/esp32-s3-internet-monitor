@@ -5,7 +5,8 @@
  * @file connectivity.h
  * @brief Internet connectivity checking via HTTP requests
  * 
- * Uses multiple fallback URLs (Google, Cloudflare) for reliability.
+ * Tries the first two URLs in checkUrls (Google, then Cloudflare), so one
+ * provider outage does not read as an internet outage.
  * Implements connection reuse for performance.
  * Returns early on first successful check.
  */
@@ -56,7 +57,9 @@ inline bool checkSingleUrl(const char* url) {
 inline int checkInternet() {
   int successes = 0;
   
-  // Try up to 2 URLs, return early on first success
+  // Try the first 2 URLs (different providers), return early on first success.
+  // The cap is 2 so the worst case, 2 x CHECK_TOTAL_TIMEOUT (6 s), stays
+  // inside CHECK_INTERVAL (10 s).
   int maxChecks = min(2, numCheckUrls);
   for (int i = 0; i < maxChecks; i++) {
     esp_task_wdt_reset();
