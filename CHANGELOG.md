@@ -1,213 +1,101 @@
 # Changelog
 
-All notable changes to the ESP32-S3 Internet Monitor project.
+All notable changes to the ESP32-S3 Internet Monitor project, one entry per
+merged pull request, newest first. Dates are the merge dates from the git
+history. The repository has no tags or releases. The firmware version string
+is the value of `FW_VERSION` in `config.h` after that pull request.
 
-## [0.7.1] - 2024-01-XX
+## PR #5: refactor directory, update readme, docs (2025-12-02)
+
+Firmware version string: 0.7.1 (unchanged).
+
+- Moved the sources into an `InternetMonitor/` directory (the `.ino` sketch, `config.h`, and the `effects/`, `mqtt/`, `network/`, `storage/`, `system/` and `web/` folders).
+- Updated `README.md`.
+- Added `docs/DEVELOPER_GUIDE.md`.
+
+## PR #4: v3 improvements and fixes (2025-12-02)
+
+Firmware version string: 0.7.1.
 
 ### Added
-- **Hardware Factory Reset**: Hold BOOT button for 5 seconds to reset all settings
-  - Visual feedback: red rings fill inward as progress indicator
-  - Works during normal operation (not at boot)
-  - Clears WiFi, password, MQTT, and display settings
-- **MQTT Reset Button**: Clear all MQTT config from dashboard
-- **MQTT Config Validation**: Test connection required before saving
-  - Enable toggle disabled until test passes
-  - Save button disabled until test passes
-  - Config changes reset test state (must re-test)
+- **Hardware factory reset**: hold the BOOT button (GPIO0) for 5 seconds during normal operation to reset settings. Red rings fill inward as progress feedback.
+- **MQTT reset**: a `/mqtt/reset` endpoint and dashboard control to clear the MQTT settings.
+- **MQTT test**: a `/mqtt/test` endpoint used by the dashboard.
 
 ### Changed
-- **Config Portal**: Now open network (no password required)
-  - Removed auth requirement from portal pages
-  - Easier first-time setup and recovery
-- **MQTT Defaults**: HA Discovery now defaults to OFF
-- **Code Organization**: Improved modular structure
-  - Moved `effectNames[]` and `effectDefaults[][]` to `effects/effects_base.h`
-  - Moved `showFactoryResetProgress()` to `effects/effects_base.h`
-  - Created new `system/factory_reset.h` module
-  - Main `.ino` reduced from ~450 to ~313 lines
+- **Config portal**: the setup access point is now an open network, and the portal pages no longer require login.
+- **MQTT defaults**: Home Assistant discovery now defaults to off.
+- **Code organisation**: effect names and defaults and the factory-reset progress display moved to `effects/effects_base.h`. New `system/factory_reset.h` module.
 
 ### Fixed
-- **Modal Callback Bug**: Confirm dialogs (factory reset, etc.) now work correctly
-  - Was: callback nulled before invocation
-  - Fix: save callback reference before hiding modal
-- **SSID Buffer Overflow**: Long SSIDs no longer corrupt network list display
-  - Increased buffer from 200 to 400 bytes
-  - Added truncation for SSIDs > 48 characters
-- **Input Autofill Styling**: Browser autofill no longer shows white backgrounds
-- **JavaScript Improvements**:
-  - Fixed deprecated `event` global usage (now passed as parameter)
-  - Added null checks on stats data to prevent crashes
-  - MQTT password field can now be cleared
-  - Added error feedback on fetch failures
-  - Improved WiFi scan detection reliability
+- Long SSIDs no longer overflow the network-list buffer (200 to 400 bytes, with truncation of very long names).
+- The portal scan buttons now pass the `event` object explicitly instead of relying on the deprecated global.
 
----
+## PR #3: MQTT, modular refactor, performance and security (2025-12-02)
 
-## [0.7.0] - 2024-01-XX
+Firmware version string: 0.7.0.
 
 ### Added
-- **MQTT Support**: Publish status to MQTT broker for Home Assistant integration
-  - Runs in dedicated FreeRTOS task (won't block network checks)
-  - Configurable broker, port, username, password, topic
-  - Home Assistant auto-discovery (8 entities)
-  - Last Will Testament for offline detection
-- **ArduinoJson**: Clean JSON serialization throughout codebase
-- **Response Helpers**: `sendError()`, `sendSuccess()` for consistent API responses
-- **Function Documentation**: Doxygen-style comments on all public APIs
-- **UI Modal System**: Custom styled dialogs replacing browser alerts
-- **Password Hashing**: Web password stored as SHA-256 hash (not plaintext)
-  - Automatic migration from plaintext on first boot
-  - Uses ESP32's built-in mbedtls library
-- **API Error Codes**: `APIError` enum for consistent error handling
-- **Rotation Constants**: `ROTATION_0`, `ROTATION_90`, `ROTATION_180`, `ROTATION_270`
-- **File Headers**: @file documentation on all source files
+- **MQTT support** (PubSubClient) in its own FreeRTOS task, with Home Assistant discovery payloads.
+- **ArduinoJson** for JSON in the MQTT and web handlers.
+- **Password hashing**: the web password is stored as a SHA-256 hash (mbedtls).
+- **Modal dialogs** in the dashboard (`web/ui_modal.h`) and shared styles (`web/ui_styles.h`).
+- **API error codes** (`APIError` in `core/types.h`) and rotation constants (`ROTATION_0` to `ROTATION_270`).
+- `@file` documentation headers on source files.
 
 ### Changed
-- **Effects Switch**: Now uses enum names (`EFFECT_RAIN`) instead of magic numbers
-- **Token Generation**: Uses hardware RNG (`esp_random()`) for better security
-- **Thread Safety**: `haDiscoveryPublished` now volatile for cross-core access
-- **URL Check Loop**: Uses `min(2, numCheckUrls)` instead of hardcoded value
-- **OTA Password**: Now fixed to "internet-monitor" for simplicity
-- **AP Password**: Fixed to "admin" during config portal (was using web password)
-- **API Responses**: All endpoints now return JSON (previously some returned "OK" text)
+- The firmware was split into modules: `core/`, `mqtt/`, `network/`, `storage/`, `system/` and `web/`.
+- The auth code in `web/auth.h` uses the hardware RNG (`esp_random()`).
+- The OTA password is the fixed string `internet-monitor`, and the setup access point password is `admin`.
 
-### Fixed
-- MQTT buffer size increased to 768 bytes for HA discovery payloads
-- Toggle switches in dashboard now update visually on click
-- `ui_dashboard_extended.h` include guard was incorrectly `UI_DASHBOARD_H`
+## PR #2: v2 improvements and fixes (2025-12-01)
 
----
-
-## [0.6.0] - 2024-01-XX
+Firmware version string: 0.6.0.
 
 ### Added
-- **Thread Safety**: Added `volatile` keyword to all cross-core shared variables
-- **Mutex Protection**: `changeState()` now uses `portMUX_TYPE` for thread-safe state transitions
-- **Fast Math Library**: 
-  - Sin/Cos lookup table (256 entries, initialized at startup)
-  - `fastSinF()` / `fastCosF()` - ~4x faster than standard sin/cos
-  - `fastSqrt()` using Quake III inverse sqrt algorithm (`0x5f3759df`)
-  - `fastDist()` for distance calculations
-- **Consistent Pixel API**: `setPixelAt(row, col, r, g, b)`, `setPixelRGB()`, `fillAll()`
-- **Utility Functions**: `clamp255()`, `lerpf()`, `mapFloat()`, `getScaledTime()`, `getTimeScale()`
-- **HTTP Connection Reuse**: Single `HTTPClient` instance with `setReuse(true)`
-- **Effect Reset**: Effects now reset their state when switched to (ball position, noise phase, etc.)
+- **Modular effects system**: each effect in its own file under `effects/`, with shared helpers in `effects/effects_base.h`. The effect enum lists 18 entries including Off.
+- **Dual-core operation**: LED effects run on Core 0 at about 60 fps, with a separate pinned network-check task. The dashboard shows FPS, frame time and task stack headroom.
+- **Watchdog** timeout configured in `config.h` (`WDT_TIMEOUT`, 60 seconds).
+- **Factory reset** button in the dashboard (`/factory-reset`).
+- **Fast math**: a sine lookup table, `fastSinF()` and an inverse-square-root based `fastSqrt()`.
+- **Pixel and utility helpers**: `setPixelAt()`, `clamp255()`, `lerpf()`, `mapFloat()`, `getScaledTime()` and `getTimeScale()`.
+- Effect state colours (`COLOR_OK_*`, `COLOR_DOWN_*` and others) in `config.h`.
+- `volatile` on cross-core shared variables, and a `portMUX_TYPE` spinlock in the state-change code.
+- HTTP connection reuse (`setReuse(true)`) for the connectivity checks.
 
 ### Changed
-- **Named Constants**: All magic numbers replaced with `#define` constants in each effect file
-- **State Colors**: Moved to `config.h` as `COLOR_OK_R/G/B`, `COLOR_DOWN_R/G/B`, etc.
-- **File Organization**: Web UI files moved to `web/` directory
-- **13 Effects Refactored**: Fire, Pool, Metaballs, Plasma, Nebula, Ocean, Interference, Noise, Pulse, Ripple, Rings, Ball, Solid
+- The web UI files moved to a `web/` directory, and a `web/ui_dashboard_extended.h` file was added.
 
-### Removed
-- Unused `ledTaskIdleUs` and `netTaskIdleUs` variables
+Before this pull request, gamma correction and a serpentine matrix layout were
+tried and reverted (the matrix stayed linear). The earlier changelog numbered
+these attempts 0.5.0 to 0.5.2. They have no
+commits of their own.
 
-### Performance
-- Effects using sin/sqrt now 3-4x faster due to lookup tables
-- Reduced memory allocations in HTTP checks
+## PR #1: new WiFi portal, performance improvements (2025-11-27)
 
----
+Firmware version string: 0.2.0 (0.1.0 before).
 
-## [0.5.3] - 2024-01-XX
-
-### Fixed
-- **Fire Effect**: Complete rewrite - now fills entire 8x8 matrix with animated flames
-- **Pool Effect**: Removed red channel to prevent purple artifacts
-- **Ocean Effect**: Fixed color order issue (was showing yellow/red instead of blue)
-- **Pong Effect**: Ball now renders last so it's always visible over center line
-- **Pulse Effect**: Smooth sine wave breathing instead of abrupt color changes
-- **Nebula Effect**: Added color wave for purple/blue/pink shifting
-- **Noise Effect**: Constrained brightness to prevent saturation
-- **Interference Effect**: Distinct colors for constructive vs destructive interference
-- **Metaballs Effect**: Adjusted formula to prevent solid color saturation
-- **Game of Life**: Added stagnation detection (resets after 3 identical generations)
+### Added
+- **Config portal**: a captive portal (`InternetMonitor-Setup`, DNS redirect) for WiFi setup, with a portal page in `ui_portal.h`.
+- **NVS persistence** (Preferences): WiFi credentials, brightness, effect, rotation and speed survive a reboot.
+- A "Reset WiFi Settings" action (`/reset-wifi`) that clears the credentials and reboots into setup mode.
 
 ### Changed
-- All effects now use `pixels.setPixelColor(i, r, g, b)` instead of `pixels.Color()` for consistency
+- Settings writes to NVS are debounced (`NVS_WRITE_DELAY_MS`, 3 seconds) to reduce flash wear.
+- The setup access point was protected with the web password (changed in PR #4).
+- README rewritten for the setup flow.
 
----
+## Initial commit (2025-11-26)
 
-## [0.5.2] - 2024-01-XX
+No firmware version string in the code at this commit.
 
-### Fixed
-- Removed gamma correction (was causing color issues)
-- Fixed duplicate `#endif` in effect_solid.h
-- Reverted to NEO_RGB color order (confirmed working)
+- Internet connectivity monitor for the ESP32-S3 with an 8x8 WS2812B LED matrix.
+- Redundant check URLs and a two-failure threshold before showing red.
+- Web dashboard with a login, plus OTA updates.
+- Five animated effects (Solid, Ripple, Rainbow, Pulse, Rain) and Off, described in the README.
 
----
+## Version numbering
 
-## [0.5.1] - 2024-01-XX
-
-### Fixed
-- Reverted serpentine matrix layout (matrix is linear, not serpentine)
-- Web password now correctly falls back to `config.h` if NVS is empty
-
----
-
-## [0.5.0] - 2024-01-XX
-
-### Added
-- Attempted gamma correction (reverted in 0.5.2)
-- Attempted serpentine layout support (reverted in 0.5.1)
-
----
-
-## [0.4.0] - 2024-01-XX
-
-### Added
-- **Factory Reset**: Web UI button to clear all NVS settings and reboot to setup mode
-- **Modular Effects System**: Each effect in its own file under `effects/` directory
-- **19 LED Effects**: Off, Solid, Ripple, Rainbow, Pulse, Rain, Matrix, Fire, Plasma, Ocean, Nebula, Life, Pong, Metaballs, Interference, Noise, Pool, Rings, Ball
-
-### Changed
-- Effects organized into categories: Basic, Visual, Animated
-- Dashboard groups effects by category
-
----
-
-## [0.3.0] - 2024-01-XX
-
-### Added
-- **Dual-Core Architecture**: LED effects on Core 0, network on Core 1
-- **60fps LED Rendering**: Smooth animations that never block
-- **Performance Monitoring**: FPS, frame time, stack usage displayed in web UI
-- **Watchdog Timer**: Auto-reboot if system hangs for 60 seconds
-
-### Changed
-- Web server runs on main loop (Core 1)
-- Network checks run in dedicated FreeRTOS task
-
----
-
-## [0.2.0] - 2024-01-XX
-
-### Added
-- **Config Portal**: Captive portal for WiFi setup when not configured
-- **NVS Persistence**: Settings survive reboot (WiFi, brightness, effect, rotation, speed)
-- **Multiple Check URLs**: Redundant connectivity checks (Google, Cloudflare)
-- **Consecutive Failure Threshold**: Requires 2 failures before showing red
-
-### Changed
-- Password protected AP in config mode
-- Debounced NVS writes to reduce flash wear
-
----
-
-## [0.1.0] - 2024-01-XX
-
-### Added
-- Initial release
-- Basic internet connectivity monitoring
-- 8x8 WS2812B LED matrix support
-- Web dashboard with login
-- Brightness and rotation controls
-- Basic LED effects
-- OTA update support
-
----
-
-## Version Numbering
-
-- **Major** (X.0.0): Breaking changes or major new features
-- **Minor** (0.X.0): New features, backward compatible
-- **Patch** (0.0.X): Bug fixes, minor improvements
+`FW_VERSION` is set by hand in `config.h`. Several numbers have no commit
+of their own (0.3.0 to 0.5.3), so the string does not map one-to-one to
+commits.
