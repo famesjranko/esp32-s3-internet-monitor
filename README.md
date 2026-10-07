@@ -294,3 +294,9 @@ esp32-s3-internet-monitor/
 ## Contributing
 
 See [Developer Guide](docs/DEVELOPER_GUIDE.md) for architecture details, code patterns, and contribution guidelines.
+
+## License
+
+This project is released under the MIT License. See [LICENSE](LICENSE).
+
+The Adafruit NeoPixel library and the ESP32 Arduino core are LGPL-licensed. Their terms apply to anyone who distributes a built firmware binary.
