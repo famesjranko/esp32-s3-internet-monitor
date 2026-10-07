@@ -85,13 +85,21 @@ Firmware version string: 0.2.0 (0.1.0 before).
 - The setup access point was protected with the web password (changed in PR #4).
 - README rewritten for the setup flow.
 
+## Direct commits to main (2025-11-27)
+
+Firmware version string: 0.1.0 (first appearance).
+
+- Split the single sketch into `config.h`, `effects.h`, `ui_dashboard.h` and `ui_login.h`.
+- Password-protected web dashboard with a login page (password set in `config.h`).
+- Performance and security improvements.
+
 ## Initial commit (2025-11-26)
 
 No firmware version string in the code at this commit.
 
 - Internet connectivity monitor for the ESP32-S3 with an 8x8 WS2812B LED matrix.
 - Redundant check URLs and a two-failure threshold before showing red.
-- Web dashboard with a login, plus OTA updates.
+- Web dashboard without a login, plus OTA updates.
 - Five animated effects (Solid, Ripple, Rainbow, Pulse, Rain) and Off, described in the README.
 
 ## Version numbering
