@@ -33,8 +33,8 @@ extern bool httpClientInitialized;
  */
 inline bool checkSingleUrl(const char* url) {
   // Reuse the global HTTP client for connection pooling
-  httpClient.setConnectTimeout(2000);
-  httpClient.setTimeout(3000);
+  httpClient.setConnectTimeout(CHECK_CONNECT_TIMEOUT);
+  httpClient.setTimeout(CHECK_TOTAL_TIMEOUT);
   httpClient.setReuse(true);  // Enable connection reuse
   
   if (!httpClient.begin(url)) {
