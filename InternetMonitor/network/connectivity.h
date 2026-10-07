@@ -35,7 +35,7 @@ extern bool httpClientInitialized;
 inline bool checkSingleUrl(const char* url) {
   // Reuse the global HTTP client for connection pooling
   httpClient.setConnectTimeout(CHECK_CONNECT_TIMEOUT);
-  httpClient.setTimeout(CHECK_TOTAL_TIMEOUT);
+  httpClient.setTimeout(CHECK_READ_TIMEOUT);
   httpClient.setReuse(true);  // Enable connection reuse
   
   if (!httpClient.begin(url)) {
@@ -58,8 +58,8 @@ inline int checkInternet() {
   int successes = 0;
   
   // Try the first 2 URLs (different providers), return early on first success.
-  // The cap is 2 so the worst case, 2 x CHECK_TOTAL_TIMEOUT (6 s), stays
-  // inside CHECK_INTERVAL (10 s).
+  // The cap is 2 to bound the worst case: 2 x (connect + read timeout), about
+  // 10 s plus DNS. A check that overruns only delays the next one.
   int maxChecks = min(2, numCheckUrls);
   for (int i = 0; i < maxChecks; i++) {
     esp_task_wdt_reset();

@@ -35,9 +35,10 @@ const char* FW_VERSION    = "0.7.1";
 // TIMING CONFIGURATION (milliseconds)
 // ===========================================
 #define CHECK_INTERVAL    10000  // Check internet every 10 seconds
-// Two URLs are tried per check, so 2 x CHECK_TOTAL_TIMEOUT must fit inside CHECK_INTERVAL.
+// The two timeouts are separate: a stalled URL costs up to CONNECT + READ (5 s)
+// plus DNS. Two URLs are tried, so the worst case is about CHECK_INTERVAL.
 #define CHECK_CONNECT_TIMEOUT 2000  // TCP connect timeout per URL
-#define CHECK_TOTAL_TIMEOUT   3000  // Total timeout per URL
+#define CHECK_READ_TIMEOUT    3000  // Max silence while waiting for the reply, per URL
 #define WIFI_TIMEOUT      20000  // 20 seconds to connect
 #define HEARTBEAT_INTERVAL 2000  // Pulse every 2 seconds
 #define FADE_DURATION     500    // 500ms fade transitions
