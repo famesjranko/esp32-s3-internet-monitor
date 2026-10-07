@@ -12,7 +12,8 @@ The HTML comes from `InternetMonitor/web/*.h` (`handleRoot`, `handlePortalRoot`,
 - `g++` (C++17) and `make`
 - ArduinoJson in `~/Arduino/libraries/ArduinoJson` (override: `make ARDUINOJSON=<path to its src>`)
 - For screenshots: Node, and Playwright with Chromium. `PLAYWRIGHT_DIR` is a
-  directory that has `node_modules/playwright` (default `~/blog-esp32`).
+  directory that has `node_modules/playwright`; set it before `make shots`, e.g.
+  `PLAYWRIGHT_DIR=~/some-project make -C tools/web-preview shots`.
 
 ## Run
 
