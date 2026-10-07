@@ -3,10 +3,10 @@
 
 #include "effects_base.h"
 
-// Fire color palette thresholds
-#define FIRE_DARK_RED_THRESH    0.3f
-#define FIRE_ORANGE_THRESH      0.6f
-#define FIRE_YELLOW_THRESH      0.85f
+// Flame ramp: black -> state colour at FIRE_BODY_THRESH -> bright tip at heat 1
+#define FIRE_BODY_THRESH        0.55f
+#define FIRE_TIP_GAIN           2.0f   // Tip is the state colour times this...
+#define FIRE_TIP_WHITE          80.0f  // ...plus this much white, so it reads as a hot core
 
 // Fire flicker frequencies
 #define FIRE_FLICKER_FREQ_1     1.2f
@@ -19,6 +19,21 @@
 // Heat distribution
 #define FIRE_ROW_HEAT_DECAY     0.1f   // Heat decreases 10% per row
 #define FIRE_VARIATION_AMP      0.15f  // Variation amplitude
+
+// Maps heat (0..1) to a flame colour built from the fading state colour
+inline void fireColor(float heat, uint8_t* r, uint8_t* g, uint8_t* b) {
+  if (heat < FIRE_BODY_THRESH) {
+    float scale = heat / FIRE_BODY_THRESH;
+    *r = (uint8_t)(currentR * scale);
+    *g = (uint8_t)(currentG * scale);
+    *b = (uint8_t)(currentB * scale);
+    return;
+  }
+  float blend = (heat - FIRE_BODY_THRESH) / (1.0f - FIRE_BODY_THRESH);
+  *r = clamp255((int)lerpf(currentR, currentR * FIRE_TIP_GAIN + FIRE_TIP_WHITE, blend));
+  *g = clamp255((int)lerpf(currentG, currentG * FIRE_TIP_GAIN + FIRE_TIP_WHITE, blend));
+  *b = clamp255((int)lerpf(currentB, currentB * FIRE_TIP_GAIN + FIRE_TIP_WHITE, blend));
+}
 
 // Effect 7: Fire - Animated flames filling the matrix
 void effectFire() {
@@ -45,33 +60,9 @@ void effectFire() {
       if (heat < 0.0f) heat = 0.0f;
       if (heat > 1.0f) heat = 1.0f;
       
-      // Fire color palette
       uint8_t r, g, b;
-      if (heat < FIRE_DARK_RED_THRESH) {
-        // Black to dark red
-        r = (uint8_t)(heat * 3.3f * 180.0f);
-        g = 0;
-        b = 0;
-      } else if (heat < FIRE_ORANGE_THRESH) {
-        // Dark red to orange
-        float blend = (heat - FIRE_DARK_RED_THRESH) / (FIRE_ORANGE_THRESH - FIRE_DARK_RED_THRESH);
-        r = (uint8_t)(180 + blend * 75);
-        g = (uint8_t)(blend * 100);
-        b = 0;
-      } else if (heat < FIRE_YELLOW_THRESH) {
-        // Orange to yellow
-        float blend = (heat - FIRE_ORANGE_THRESH) / (FIRE_YELLOW_THRESH - FIRE_ORANGE_THRESH);
-        r = 255;
-        g = (uint8_t)(100 + blend * 155);
-        b = 0;
-      } else {
-        // Yellow to white tips
-        float blend = (heat - FIRE_YELLOW_THRESH) / (1.0f - FIRE_YELLOW_THRESH);
-        r = 255;
-        g = 255;
-        b = (uint8_t)(blend * 200);
-      }
-      
+      fireColor(heat, &r, &g, &b);
+
       // Render with row 0 at bottom (flames rise) using consistent API
       setPixelAt(7 - row, col, r, g, b);
     }
