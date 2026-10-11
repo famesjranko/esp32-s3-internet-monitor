@@ -58,8 +58,8 @@ inline int checkInternet() {
   int successes = 0;
   
   // Try the first 2 URLs (different providers), return early on first success.
-  // The cap is 2 to bound the worst case: 2 x (connect + read timeout), about
-  // 10 s plus DNS. A check that overruns only delays the next one.
+  // Each URL has separate TCP connect and read-inactivity timeouts. DNS and
+  // repeated response reads can add time; these are not total-request deadlines.
   int maxChecks = min(2, numCheckUrls);
   for (int i = 0; i < maxChecks; i++) {
     esp_task_wdt_reset();
