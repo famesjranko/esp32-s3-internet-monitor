@@ -12,7 +12,7 @@
  *   2. Add reset function: void resetYournameEffect()
  *   3. Include it below
  *   4. Add to Effect enum in core/types.h
- *   5. Add name to effectNames[] in InternetMonitor.ino
+ *   5. Add name to effectNames[] in effects/effects_base.h
  *   6. Add case to applyEffect() switch below
  *   7. Add defaults to effectDefaults[] array
  *   8. Add reset call to resetAllEffectState() in effects_base.h

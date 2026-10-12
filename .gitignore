@@ -26,7 +26,6 @@ secrets.h
 credentials.h
 
 # And others
-CLAUDE.md
 .cursorrules
 .cursor/
 .github/copilot-instructions.md
