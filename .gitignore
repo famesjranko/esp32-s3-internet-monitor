@@ -34,3 +34,7 @@ CLAUDE.md
 .codeium/
 .tabnine/
 .continue/
+
+# Host web preview output
+tools/web-preview/build/
+tools/web-preview/out/
